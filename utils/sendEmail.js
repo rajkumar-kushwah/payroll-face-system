@@ -410,21 +410,25 @@ export const sendDeleteEmail = async (name, email, ip, userAgent) => {
 // ===== OTP Email =====
 export const sendOtpEmail = async (email, otp) => {
   const html = `
-    <div style="font-family:Arial; max-width:400px; margin:auto; padding:20px; border:1px solid #ddd; border-radius:10px; background:#fff;">
+    <div>
       <h3>Your OTP: <strong>${otp}</strong></h3>
       <p>This OTP expires in 10 minutes.</p>
     </div>
   `;
 
   try {
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: `"NabuTech" <${process.env.GMAIL_USER}>`,
       to: email,
       subject: "Your OTP Code",
       html,
     });
-    console.log(" OTP Email Sent to", email);
+
+    console.log("OTP Email Sent:", info.messageId);
+    return info;
+
   } catch (err) {
-    console.error(" sendOtpEmail error:", err.message);
+    console.error("sendOtpEmail FAILED:", err);
+    throw err; // 🔥 MOST IMPORTANT LINE
   }
 };
