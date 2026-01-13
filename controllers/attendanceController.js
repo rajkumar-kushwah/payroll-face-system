@@ -6,7 +6,7 @@ import Employee from "../models/Employee.js";
 import Company from "../models/Company.js";
 import WorkSchedule from "../models/WorkSchedule.js";
 import Leave from "../models/Leave.js";
-import { hhmmToDate,hhmmToDateUTC, minutesBetween, minutesToHoursDecimal } from "../utils/time.js";
+import { hhmmToDate, hhmmToDateUTC, minutesBetween, minutesToHoursDecimal } from "../utils/time.js";
 import OfficeHoliday from "../models/OfficeHoliday.js";
 
 
@@ -81,14 +81,27 @@ const getEmployeeFromToken = async (req) => {
 export const autoCheckoutBySchedule = async () => {
   try {
     const now = new Date();
-    const todayStr = now.toISOString().split("T")[0]; // YYYY-MM-DD format
+    // const todayStr = now.toISOString().split("T")[0]; // YYYY-MM-DD format
 
-    // 🔹 Attendances with checkIn but no checkOut
+    // // 🔹 Attendances with checkIn but no checkOut
+    // const attendances = await Attendance.find({
+    //   date: todayStr,
+    //   checkIn: { $ne: null },
+    //   checkOut: null,
+    // });
+
+    const start = new Date();
+    start.setUTCHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setUTCHours(23, 59, 59, 999);
+
     const attendances = await Attendance.find({
-      date: todayStr,
+      date: { $gte: start, $lte: end },
       checkIn: { $ne: null },
       checkOut: null,
     });
+
 
     console.log("Attendances to process:", attendances.length);
 
@@ -97,11 +110,19 @@ export const autoCheckoutBySchedule = async () => {
       if (!emp) continue;
 
       // 🔹 Skip if employee has approved leave
+      // const leave = await Leave.findOne({
+      //   employeeId: emp._id,
+      //   companyId: record.companyId,
+      //   startDate: { $lte: new Date(todayStr) },
+      //   endDate: { $gte: new Date(todayStr) },
+      //   status: "approved",
+      // });
+
       const leave = await Leave.findOne({
         employeeId: emp._id,
         companyId: record.companyId,
-        startDate: { $lte: new Date(todayStr) },
-        endDate: { $gte: new Date(todayStr) },
+        startDate: { $lte: now },
+        endDate: { $gte: now },
         status: "approved",
       });
       if (leave) continue;
@@ -119,7 +140,7 @@ export const autoCheckoutBySchedule = async () => {
       if (schedule.weeklyOff?.includes(dayName)) continue;
 
       // 🔹 Scheduled out and grace
-      const scheduledOut = hhmmToDate(todayStr, schedule.outTime); 
+      const scheduledOut = hhmmToDate(todayStr, schedule.outTime);
       const outWithGrace = new Date(scheduledOut.getTime() + (schedule.gracePeriod || 0) * 60000);
 
       // 🔹 Only auto-checkout if time passed and checkout missing
@@ -165,9 +186,15 @@ export const computeDerivedFields = (record, schedule) => {
   const [outH, outM] = schedule.outTime.split(":").map(Number);
 
   //  Schedule OUT Date (UTC-safe)
-  const scheduleOut = new Date(record.date);
-  scheduleOut.setUTCHours(outH - 5, outM - 30, 0, 0);
+  // const scheduleOut = new Date(record.date);
+  // scheduleOut.setUTCHours(outH - 5, outM - 30, 0, 0);
+  const scheduleOut = hhmmToDateUTC(
+    record.date.toISOString().split("T")[0],
+    schedule.outTime
+  );
+
   // IST → UTC conversion
+
 
   // 1️ Total hours
   const totalMinutes = Math.floor((checkOut - checkIn) / 60000);
@@ -207,11 +234,21 @@ export const getSchedule = async (emp, companyId) => {
 };
 
 
-const getISTDateOnly = () => {
+
+const getISTDayRange = () => {
   const now = new Date();
-  const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-  ist.setHours(0, 0, 0, 0);
-  return ist;
+
+  const istNow = new Date(
+    now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  );
+
+  const start = new Date(istNow);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(istNow);
+  end.setHours(23, 59, 59, 999);
+
+  return { start, end };
 };
 
 /* ======================================================
@@ -232,36 +269,36 @@ export const checkIn = async (req, res) => {
       emp = await Employee.findById(req.body.employeeId);
     }
 
-    const today = getISTDateOnly();
-
-    // 🔥 STEP 1: Auto-close ONLY previous days (not today)
+    const { start, end } = getISTDayRange();
+    const today = start;
+    // 1️⃣ Auto-close previous days
     await Attendance.updateMany(
       {
         employeeId: emp._id,
         companyId: req.user.companyId,
         checkOut: null,
-        date: { $lt: today },
+        date: { $lt: start },
       },
       {
         $set: {
-          checkOut: new Date(today.getTime() - 1),
+          checkOut: new Date(start.getTime() - 1),
           autoCheckout: true,
-          status: "present",
         },
       }
     );
 
-    // 🔒 STEP 2: Block same-day double check-in
+    // 2️⃣ Block only SAME DAY double check-in
     const exists = await Attendance.findOne({
       employeeId: emp._id,
       companyId: req.user.companyId,
-      date: today,
       checkOut: null,
+      date: { $gte: start, $lte: end },
     });
 
     if (exists) {
       return res.status(400).json({ message: "Already checked in" });
     }
+
 
     // ✅ STEP 3: Create today's attendance
     const record = await Attendance.create({
@@ -350,17 +387,20 @@ export const checkOut = async (req, res) => {
     }
 
     // 🔹 UTC-safe day range
-    const startOfDay = new Date();
-    startOfDay.setUTCHours(0, 0, 0, 0);
+    // const startOfDay = new Date();
+    // startOfDay.setUTCHours(0, 0, 0, 0);
 
-    const endOfDay = new Date();
-    endOfDay.setUTCHours(23, 59, 59, 999);
+    // const endOfDay = new Date();
+    // endOfDay.setUTCHours(23, 59, 59, 999);
+
+    const { start, end } = getISTDayRange();
 
     // 🔹 Get today's attendance
     const record = await Attendance.findOne({
       employeeId: emp._id,
       companyId: req.user.companyId,
-      date: { $gte: startOfDay, $lte: endOfDay },
+      // date: { $gte: startOfDay, $lte: endOfDay },
+      date: { $gte: start, $lte: end },
     });
 
     if (!record)
