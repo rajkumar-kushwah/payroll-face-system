@@ -277,7 +277,7 @@ export const checkIn = async (req, res) => {
         employeeId: emp._id,
         companyId: req.user.companyId,
         checkOut: null,
-        date: { $lt: start },
+        date: { $lt: start, },
       },
       {
         $set: {
