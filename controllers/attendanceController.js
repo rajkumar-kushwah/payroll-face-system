@@ -232,19 +232,38 @@ export const checkIn = async (req, res) => {
       emp = await Employee.findById(req.body.employeeId);
     }
 
-    // const today = toDateString(new Date());
     const today = getISTDateOnly();
-    // today.setUTCHours(0, 0, 0, 0);
 
+    // 🔥 STEP 1: Auto-close ONLY previous days (not today)
+    await Attendance.updateMany(
+      {
+        employeeId: emp._id,
+        companyId: req.user.companyId,
+        checkOut: null,
+        date: { $lt: today },
+      },
+      {
+        $set: {
+          checkOut: new Date(today.getTime() - 1),
+          autoCheckout: true,
+          status: "present",
+        },
+      }
+    );
+
+    // 🔒 STEP 2: Block same-day double check-in
     const exists = await Attendance.findOne({
       employeeId: emp._id,
       companyId: req.user.companyId,
       date: today,
       checkOut: null,
     });
-    if (exists)
-      return res.status(400).json({ message: "Already checked in" });
 
+    if (exists) {
+      return res.status(400).json({ message: "Already checked in" });
+    }
+
+    // ✅ STEP 3: Create today's attendance
     const record = await Attendance.create({
       employeeId: emp._id,
       employeeCode: emp.employeeCode,
@@ -262,6 +281,7 @@ export const checkIn = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /* ======================================================
    CHECK-OUT
