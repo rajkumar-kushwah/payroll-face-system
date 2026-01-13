@@ -81,26 +81,27 @@ const getEmployeeFromToken = async (req) => {
 export const autoCheckoutBySchedule = async () => {
   try {
     const now = new Date();
-    // const todayStr = now.toISOString().split("T")[0]; // YYYY-MM-DD format
+    const {start, end} = getISTDayRange();
+    const todayStr = start.toISOString().split("T")[0]; // YYYY-MM-DD format
 
-    // // 🔹 Attendances with checkIn but no checkOut
-    // const attendances = await Attendance.find({
-    //   date: todayStr,
-    //   checkIn: { $ne: null },
-    //   checkOut: null,
-    // });
-
-    const start = new Date();
-    start.setUTCHours(0, 0, 0, 0);
-
-    const end = new Date();
-    end.setUTCHours(23, 59, 59, 999);
-
+    // 🔹 Attendances with checkIn but no checkOut
     const attendances = await Attendance.find({
       date: { $gte: start, $lte: end },
       checkIn: { $ne: null },
       checkOut: null,
     });
+
+    // const start = new Date();
+    // start.setUTCHours(0, 0, 0, 0);
+
+    // const end = new Date();
+    // end.setUTCHours(23, 59, 59, 999);
+
+    // const attendances = await Attendance.find({
+    //   date: { $gte: start, $lte: end },
+    //   checkIn: { $ne: null },
+    //   checkOut: null,
+    // });
 
 
     console.log("Attendances to process:", attendances.length);
@@ -136,7 +137,7 @@ export const autoCheckoutBySchedule = async () => {
       if (!schedule) continue;
 
       // 🔹 Skip if weekly off
-      const dayName = new Date(todayStr).toLocaleDateString("en-US", { weekday: "long" });
+      const dayName = new Date(todayStr).toLocaleDateString("en-US", { weekday: "long", timeZone: "Asia/Kolkata" });
       if (schedule.weeklyOff?.includes(dayName)) continue;
 
       // 🔹 Scheduled out and grace
@@ -145,9 +146,11 @@ export const autoCheckoutBySchedule = async () => {
 
       // 🔹 Only auto-checkout if time passed and checkout missing
       if (now >= outWithGrace) {
-        // ✅ Use current time, not fixed outTime
-        record.checkOut = now;
-        record.autoCheckout = true;
+        //  Use current time, not fixed outTime
+        // record.checkOut = now;
+        // record.autoCheckout = true;
+         record.checkOut = outWithGrace; // IST-safe
+         record.autoCheckout = true;
 
         // Recalculate totalHours, status, etc.
         const { computeDerivedFields } = require("./attendanceController"); // ya apne import hisaab se
@@ -156,7 +159,7 @@ export const autoCheckoutBySchedule = async () => {
         await record.save();
         console.log(`Auto-checkout: ${emp.employeeCode} at ${now.toLocaleTimeString()}`);
       } else {
-        console.log(`Not yet time for auto-checkout: ${emp.employeeCode}`);
+        console.log(`Not yet time for auto-checkout: ${emp.employeeCode} at ${outWithGrace.toLocaleTimeString("en-US", { timeZone: "Asia/Kolkata" })}`);
       }
     }
   } catch (err) {
@@ -281,7 +284,7 @@ export const checkIn = async (req, res) => {
       },
       {
         $set: {
-          checkOut: new Date(start.getTime() - 1),
+          checkOut: new Date(),
           autoCheckout: true,
         },
       }
