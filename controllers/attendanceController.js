@@ -161,19 +161,19 @@ export const computeDerivedFields = (record, schedule) => {
   const checkIn = new Date(record.checkIn);   // UTC stored
   const checkOut = new Date(record.checkOut); // UTC stored
 
-  // 🕕 Schedule OUT time (from DB)
+  //  Schedule OUT time (from DB)
   const [outH, outM] = schedule.outTime.split(":").map(Number);
 
-  // 🔥 Schedule OUT Date (UTC-safe)
+  //  Schedule OUT Date (UTC-safe)
   const scheduleOut = new Date(record.date);
   scheduleOut.setUTCHours(outH - 5, outM - 30, 0, 0);
   // IST → UTC conversion
 
-  // 1️⃣ Total hours
+  // 1️ Total hours
   const totalMinutes = Math.floor((checkOut - checkIn) / 60000);
   record.totalHours = +(totalMinutes / 60).toFixed(2);
 
-  // 2️⃣ Overtime (ONLY schedule se compare)
+  // 2️ Overtime (ONLY schedule se compare)
   if (checkOut > scheduleOut) {
     const otMinutes = Math.floor((checkOut - scheduleOut) / 60000);
     record.overtimeHours = +(otMinutes / 60).toFixed(2);
@@ -206,6 +206,14 @@ export const getSchedule = async (emp, companyId) => {
   };
 };
 
+
+const getISTDateOnly = () => {
+  const now = new Date();
+  const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+  ist.setHours(0, 0, 0, 0);
+  return ist;
+};
+
 /* ======================================================
    CHECK-IN
 ====================================================== */
@@ -225,13 +233,14 @@ export const checkIn = async (req, res) => {
     }
 
     // const today = toDateString(new Date());
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    const today = getISTDateOnly();
+    // today.setUTCHours(0, 0, 0, 0);
 
     const exists = await Attendance.findOne({
       employeeId: emp._id,
       companyId: req.user.companyId,
       date: today,
+      checkOut: null,
     });
     if (exists)
       return res.status(400).json({ message: "Already checked in" });
