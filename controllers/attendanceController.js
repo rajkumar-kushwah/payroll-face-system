@@ -78,57 +78,113 @@ const getEmployeeFromToken = async (req) => {
 /* ======================================================
    AUTO CHECKOUT BY WORK SCHEDULE
 ====================================================== */
+// export const autoCheckoutBySchedule = async () => {
+//   try {
+//     const now = new Date();
+//     const {start, end} = getISTDayRange();
+//     const todayStr = start.toISOString().split("T")[0]; // YYYY-MM-DD format
+
+//     // 🔹 Attendances with checkIn but no checkOut
+//     const attendances = await Attendance.find({
+//       date: { $gte: start, $lte: end },
+//       checkIn: { $ne: null },
+//       checkOut: null,
+//     });
+
+//     // const start = new Date();
+//     // start.setUTCHours(0, 0, 0, 0);
+
+//     // const end = new Date();
+//     // end.setUTCHours(23, 59, 59, 999);
+
+//     // const attendances = await Attendance.find({
+//     //   date: { $gte: start, $lte: end },
+//     //   checkIn: { $ne: null },
+//     //   checkOut: null,
+//     // });
+
+
+//     console.log("Attendances to process:", attendances.length);
+
+//     for (const record of attendances) {
+//       const emp = await Employee.findById(record.employeeId);
+//       if (!emp) continue;
+
+//       // 🔹 Skip if employee has approved leave
+//       // const leave = await Leave.findOne({
+//       //   employeeId: emp._id,
+//       //   companyId: record.companyId,
+//       //   startDate: { $lte: new Date(todayStr) },
+//       //   endDate: { $gte: new Date(todayStr) },
+//       //   status: "approved",
+//       // });
+
+//       const leave = await Leave.findOne({
+//         employeeId: emp._id,
+//         companyId: record.companyId,
+//         startDate: { $lte: now },
+//         endDate: { $gte: now },
+//         status: "approved",
+//       });
+//       if (leave) continue;
+
+//       // 🔹 Get active work schedule
+//       const schedule = await WorkSchedule.findOne({
+//         employeeId: emp._id,
+//         companyId: record.companyId,
+//         status: "active",
+//       });
+//       if (!schedule) continue;
+
+//       // 🔹 Skip if weekly off
+//       const dayName = new Date(todayStr).toLocaleDateString("en-US", { weekday: "long", timeZone: "Asia/Kolkata" });
+//       if (schedule.weeklyOff?.includes(dayName)) continue;
+
+//       // 🔹 Scheduled out and grace
+//       const scheduledOut = hhmmToDate(todayStr, schedule.outTime);
+//       const outWithGrace = new Date(scheduledOut.getTime() + (schedule.gracePeriod || 0) * 60000);
+
+//       // 🔹 Only auto-checkout if time passed and checkout missing
+//       if (now >= outWithGrace) {
+//         //  Use current time, not fixed outTime
+//         // record.checkOut = now;
+//         // record.autoCheckout = true;
+//          record.checkOut = outWithGrace; // IST-safe
+//          record.autoCheckout = true;
+
+//         // Recalculate totalHours, status, etc.
+//         const { computeDerivedFields } = require("./attendanceController"); // ya apne import hisaab se
+//         computeDerivedFields(record, schedule);
+
+//         await record.save();
+//         console.log(`Auto-checkout: ${emp.employeeCode} at ${now.toLocaleTimeString()}`);
+//       } else {
+//         console.log(`Not yet time for auto-checkout: ${emp.employeeCode} at ${outWithGrace.toLocaleTimeString("en-US", { timeZone: "Asia/Kolkata" })}`);
+//       }
+//     }
+//   } catch (err) {
+//     console.error("AutoCheckout Error:", err);
+//   }
+// };
+
 export const autoCheckoutBySchedule = async () => {
   try {
     const now = new Date();
-    const {start, end} = getISTDayRange();
-    const todayStr = start.toISOString().split("T")[0]; // YYYY-MM-DD format
+    const { start, end } = getISTDayRange();
+    const todayStr = start.toISOString().split("T")[0];
 
-    // 🔹 Attendances with checkIn but no checkOut
+    //  SIRF AAJ KE RECORDS
     const attendances = await Attendance.find({
       date: { $gte: start, $lte: end },
       checkIn: { $ne: null },
       checkOut: null,
     });
 
-    // const start = new Date();
-    // start.setUTCHours(0, 0, 0, 0);
-
-    // const end = new Date();
-    // end.setUTCHours(23, 59, 59, 999);
-
-    // const attendances = await Attendance.find({
-    //   date: { $gte: start, $lte: end },
-    //   checkIn: { $ne: null },
-    //   checkOut: null,
-    // });
-
-
-    console.log("Attendances to process:", attendances.length);
-
     for (const record of attendances) {
+
       const emp = await Employee.findById(record.employeeId);
       if (!emp) continue;
 
-      // 🔹 Skip if employee has approved leave
-      // const leave = await Leave.findOne({
-      //   employeeId: emp._id,
-      //   companyId: record.companyId,
-      //   startDate: { $lte: new Date(todayStr) },
-      //   endDate: { $gte: new Date(todayStr) },
-      //   status: "approved",
-      // });
-
-      const leave = await Leave.findOne({
-        employeeId: emp._id,
-        companyId: record.companyId,
-        startDate: { $lte: now },
-        endDate: { $gte: now },
-        status: "approved",
-      });
-      if (leave) continue;
-
-      // 🔹 Get active work schedule
       const schedule = await WorkSchedule.findOne({
         employeeId: emp._id,
         companyId: record.companyId,
@@ -136,32 +192,28 @@ export const autoCheckoutBySchedule = async () => {
       });
       if (!schedule) continue;
 
-      // 🔹 Skip if weekly off
-      const dayName = new Date(todayStr).toLocaleDateString("en-US", { weekday: "long", timeZone: "Asia/Kolkata" });
-      if (schedule.weeklyOff?.includes(dayName)) continue;
-
-      // 🔹 Scheduled out and grace
+      //  Schedule OUT time (18:30)
       const scheduledOut = hhmmToDate(todayStr, schedule.outTime);
-      const outWithGrace = new Date(scheduledOut.getTime() + (schedule.gracePeriod || 0) * 60000);
 
-      // 🔹 Only auto-checkout if time passed and checkout missing
+      //  Grace add
+      const outWithGrace = new Date(
+        scheduledOut.getTime() + (schedule.gracePeriod || 0) * 60000
+      );
+
+      //  AUTO CHECKOUT CONDITION
       if (now >= outWithGrace) {
-        //  Use current time, not fixed outTime
-        // record.checkOut = now;
-        // record.autoCheckout = true;
-         record.checkOut = outWithGrace; // IST-safe
-         record.autoCheckout = true;
+        record.checkOut = outWithGrace; //  schedule time only
+        record.autoCheckout = true;
 
-        // Recalculate totalHours, status, etc.
-        const { computeDerivedFields } = require("./attendanceController"); // ya apne import hisaab se
         computeDerivedFields(record, schedule);
-
         await record.save();
-        console.log(`Auto-checkout: ${emp.employeeCode} at ${now.toLocaleTimeString()}`);
-      } else {
-        console.log(`Not yet time for auto-checkout: ${emp.employeeCode} at ${outWithGrace.toLocaleTimeString("en-US", { timeZone: "Asia/Kolkata" })}`);
+
+        console.log(
+          `Auto checkout done for ${emp.employeeCode} at ${outWithGrace.toLocaleTimeString("en-IN")}`
+        );
       }
     }
+
   } catch (err) {
     console.error("AutoCheckout Error:", err);
   }
@@ -174,36 +226,67 @@ export const autoCheckoutBySchedule = async () => {
 
 
 
+// export const computeDerivedFields = (record, schedule) => {
+//   if (!record.checkIn || !record.checkOut || !schedule?.outTime) {
+//     record.totalHours = 0;
+//     record.overtimeHours = 0;
+//     record.isOvertime = false;
+//     return;
+//   }
+
+//   const checkIn = new Date(record.checkIn);   // UTC stored
+//   const checkOut = new Date(record.checkOut); // UTC stored
+
+//   //  Schedule OUT time (from DB)
+//   const [outH, outM] = schedule.outTime.split(":").map(Number);
+
+//   //  Schedule OUT Date (UTC-safe)
+//   // const scheduleOut = new Date(record.date);
+//   // scheduleOut.setUTCHours(outH - 5, outM - 30, 0, 0);
+//   const scheduleOut = hhmmToDateUTC(
+//     record.date.toISOString().split("T")[0],
+//     schedule.outTime
+//   );
+
+//   // IST → UTC conversion
+
+
+//   // 1️ Total hours
+//   const totalMinutes = Math.floor((checkOut - checkIn) / 60000);
+//   record.totalHours = +(totalMinutes / 60).toFixed(2);
+
+//   // 2️ Overtime (ONLY schedule se compare)
+//   if (checkOut > scheduleOut) {
+//     const otMinutes = Math.floor((checkOut - scheduleOut) / 60000);
+//     record.overtimeHours = +(otMinutes / 60).toFixed(2);
+//     record.isOvertime = true;
+//   } else {
+//     record.overtimeHours = 0;
+//     record.isOvertime = false;
+//   }
+// };
+
+
 export const computeDerivedFields = (record, schedule) => {
-  if (!record.checkIn || !record.checkOut || !schedule?.outTime) {
+  if (!record.checkIn || !record.checkOut) {
     record.totalHours = 0;
     record.overtimeHours = 0;
     record.isOvertime = false;
     return;
   }
 
-  const checkIn = new Date(record.checkIn);   // UTC stored
-  const checkOut = new Date(record.checkOut); // UTC stored
+  const checkIn = new Date(record.checkIn);
+  const checkOut = new Date(record.checkOut);
 
-  //  Schedule OUT time (from DB)
-  const [outH, outM] = schedule.outTime.split(":").map(Number);
+  const totalMinutes = Math.floor((checkOut - checkIn) / 60000);
+  record.totalHours = +(totalMinutes / 60).toFixed(2);
 
-  //  Schedule OUT Date (UTC-safe)
-  // const scheduleOut = new Date(record.date);
-  // scheduleOut.setUTCHours(outH - 5, outM - 30, 0, 0);
+  // Schedule OUT
   const scheduleOut = hhmmToDateUTC(
     record.date.toISOString().split("T")[0],
     schedule.outTime
   );
 
-  // IST → UTC conversion
-
-
-  // 1️ Total hours
-  const totalMinutes = Math.floor((checkOut - checkIn) / 60000);
-  record.totalHours = +(totalMinutes / 60).toFixed(2);
-
-  // 2️ Overtime (ONLY schedule se compare)
   if (checkOut > scheduleOut) {
     const otMinutes = Math.floor((checkOut - scheduleOut) / 60000);
     record.overtimeHours = +(otMinutes / 60).toFixed(2);
@@ -213,8 +296,6 @@ export const computeDerivedFields = (record, schedule) => {
     record.isOvertime = false;
   }
 };
-
-
 
 
 /* ======================================================
@@ -257,65 +338,122 @@ const getISTDayRange = () => {
 /* ======================================================
    CHECK-IN
 ====================================================== */
+// export const checkIn = async (req, res) => {
+//   try {
+//     let emp;
+
+//     if (req.user.role === "employee") {
+//       emp = await getEmployeeFromToken(req);
+//       if (!emp) return res.status(404).json({ message: "Employee not found" });
+//     }
+
+//     if (["admin", "owner", "hr"].includes(req.user.role)) {
+//       if (!req.body.employeeId)
+//         return res.status(400).json({ message: "employeeId required" });
+//       emp = await Employee.findById(req.body.employeeId);
+//     }
+
+//     const { start, end } = getISTDayRange();
+//     const today = start;
+//     // 1️⃣ Auto-close previous days
+//     await Attendance.updateMany(
+//       {
+//         employeeId: emp._id,
+//         companyId: req.user.companyId,
+//         checkOut: null,
+//         date: { $lt: start, },
+//       },
+//       {
+//         $set: {
+//           checkOut: new Date(),
+//           autoCheckout: true,
+//         },
+//       }
+//     );
+
+//     // 2️⃣ Block only SAME DAY double check-in
+//     const exists = await Attendance.findOne({
+//       employeeId: emp._id,
+//       companyId: req.user.companyId,
+//       checkOut: null,
+//       date: { $gte: start, $lte: end },
+//     });
+
+//     if (exists) {
+//       return res.status(400).json({ message: "Already checked in" });
+//     }
+
+
+//     // ✅ STEP 3: Create today's attendance
+//     const record = await Attendance.create({
+//       employeeId: emp._id,
+//       employeeCode: emp.employeeCode,
+//       name: emp.name,
+//       avatar: emp.avatar,
+//       companyId: req.user.companyId,
+//       date: today,
+//       checkIn: new Date(),
+//       status: "present",
+//     });
+
+//     res.json({ success: true, data: record });
+//   } catch (err) {
+//     console.error("CheckIn Error:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// controllers/attendanceController.js
+
 export const checkIn = async (req, res) => {
   try {
     let emp;
 
+    // 👤 EMPLOYEE
     if (req.user.role === "employee") {
       emp = await getEmployeeFromToken(req);
-      if (!emp) return res.status(404).json({ message: "Employee not found" });
+      if (!emp) {
+        return res.status(404).json({ message: "Employee not found" });
+      }
     }
 
+    // 👤 ADMIN / HR
     if (["admin", "owner", "hr"].includes(req.user.role)) {
-      if (!req.body.employeeId)
+      if (!req.body.employeeId) {
         return res.status(400).json({ message: "employeeId required" });
+      }
       emp = await Employee.findById(req.body.employeeId);
     }
 
-    const { start, end } = getISTDayRange();
-    const today = start;
-    // 1️⃣ Auto-close previous days
-    await Attendance.updateMany(
-      {
-        employeeId: emp._id,
-        companyId: req.user.companyId,
-        checkOut: null,
-        date: { $lt: start, },
-      },
-      {
-        $set: {
-          checkOut: new Date(),
-          autoCheckout: true,
-        },
-      }
-    );
+    const { start, end } = getISTDayRange(); //  aaj ka din
 
-    // 2️⃣ Block only SAME DAY double check-in
+    //  SAME DAY double check-in block
     const exists = await Attendance.findOne({
       employeeId: emp._id,
       companyId: req.user.companyId,
-      checkOut: null,
       date: { $gte: start, $lte: end },
+      checkOut: null,
     });
 
     if (exists) {
-      return res.status(400).json({ message: "Already checked in" });
+      return res.status(400).json({ message: "Already checked in today" });
     }
 
-
-    // ✅ STEP 3: Create today's attendance
+    //  CREATE TODAY RECORD
     const record = await Attendance.create({
       employeeId: emp._id,
       employeeCode: emp.employeeCode,
       name: emp.name,
       avatar: emp.avatar,
       companyId: req.user.companyId,
-      date: today,
-      checkIn: new Date(),
+      date: start,           //  sirf aaj
+      checkIn: new Date(),   //  abhi ka time
+      checkOut: null,
       status: "present",
     });
 
     res.json({ success: true, data: record });
+
   } catch (err) {
     console.error("CheckIn Error:", err);
     res.status(500).json({ message: "Server error" });
