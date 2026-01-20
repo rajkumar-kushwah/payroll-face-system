@@ -174,18 +174,50 @@ export const addEmployee = async (req, res) => {
 // -------------------------------------------------------------------
 // UPDATE EMPLOYEE
 // -------------------------------------------------------------------
+// export const updateEmployeeProfile = async (req, res) => {
+//   try {
+//     const updateData = {};
+
+//     Object.keys(req.body).forEach((key) => {
+//       if (req.body[key] !== undefined) updateData[key] = req.body[key];
+//     });
+
+//     if (req.file?.path) updateData.avatar = req.file.path;
+//     if (updateData.joinDate) updateData.joinDate = new Date(updateData.joinDate);
+//     if (updateData.dob) updateData.dateOfBirth = new Date(updateData.dob);
+
+//     const emp = await Employee.findOneAndUpdate(
+//       { _id: req.params.id, companyId: req.user.companyId },
+//       updateData,
+//       { new: true }
+//     );
+
+//     if (!emp) return res.status(404).json({ message: "Employee not found" });
+
+//     res.json({ success: true, message: "Updated successfully", emp });
+//   } catch (err) {
+//     console.error("Update Error:", err);
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
 export const updateEmployeeProfile = async (req, res) => {
   try {
     const updateData = {};
 
+    // Body ke fields ko check kar ke add karo
     Object.keys(req.body).forEach((key) => {
       if (req.body[key] !== undefined) updateData[key] = req.body[key];
     });
 
+    // Avatar file check
     if (req.file?.path) updateData.avatar = req.file.path;
+
+    // Dates ko convert karo
     if (updateData.joinDate) updateData.joinDate = new Date(updateData.joinDate);
     if (updateData.dob) updateData.dateOfBirth = new Date(updateData.dob);
 
+    // Employee update
     const emp = await Employee.findOneAndUpdate(
       { _id: req.params.id, companyId: req.user.companyId },
       updateData,
@@ -193,6 +225,20 @@ export const updateEmployeeProfile = async (req, res) => {
     );
 
     if (!emp) return res.status(404).json({ message: "Employee not found" });
+
+    // 🔹 User collection update (agar employeeId reference hai)
+    const userUpdateData = {};
+    if (updateData.name) userUpdateData.name = updateData.name;
+    if (updateData.phone) userUpdateData.phone = updateData.phone;
+    if (updateData.avatar) userUpdateData.avatar = updateData.avatar;
+    if (updateData.bio) userUpdateData.bio = updateData.bio;
+    if (updateData.gender) userUpdateData.gender = updateData.gender;
+    if (updateData.dateOfBirth) userUpdateData.dateOfBirth = updateData.dateOfBirth;
+    if (updateData.companyName) userUpdateData.companyName = updateData.companyName;
+
+    if (emp.employeeId) {
+      await User.findByIdAndUpdate(emp.employeeId, userUpdateData, { new: true });
+    }
 
     res.json({ success: true, message: "Updated successfully", emp });
   } catch (err) {
