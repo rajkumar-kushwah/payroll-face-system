@@ -188,7 +188,7 @@ router.post('/login', async (req, res) => {
       token: jwtToken,
       user: {
         id: user._id,
-        name: user.name,
+        name: employee?.name || user.name,
         email: user.email,
         role: user.role,
         companyId: user.companyId,
