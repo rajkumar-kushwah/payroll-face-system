@@ -128,6 +128,11 @@ export const addEmployee = async (req, res) => {
       companyId: req.user.companyId,
       avatar: req.file ? req.file.path : "",
       emailVerified: true,
+      phone: phone || "",
+      bio: "",
+      gender: "other",
+      dateOfBirth: dob ? new Date(dob) : null,
+      companyName: req.body.companyName || "",
     }], { session });
 
     // 2️⃣ Create Employee with reference to User
