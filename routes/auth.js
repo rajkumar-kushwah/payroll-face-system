@@ -14,7 +14,6 @@ import axios from 'axios';
 import Employee from '../models/Employee.js';
 import Salary from '../models/Salary.js';
 import Company from '../models/Company.js';
-import { join } from 'path';
 
 
 
@@ -321,32 +320,7 @@ router.get('/profile', protect , async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select("-password");
     if (!user) return res.status(404).json({message: "User not found"});
-
-    // Employee data (ager hai)
-    const employee = await Employee.findOne({ employeeId: req.user._id, companyId: req.user.companyId });
-
-    // marge data - cullection data ko user data ke sath marge kro
-    const profile = {
-      ...user._doc,
-      phone: user.phone || (employee ? employee.phone : ""),
-      bio: user.bio || (employee ? employee.bio : ""),
-      gender: user.gender || (employee ? employee.gender : ""),
-      dateOfBirth: user.dateOfBirth || (employee ? employee.dateOfBirth : ""),
-      address: user.address || (employee ? employee.address : ""),
-      role: user.role || (employee ? employee.role : ""),
-      companyName: user.companyName || (employee ? employee.companyName : ""),
-      department: user.department || (employee ? employee.department : ""),
-      joinDate: user.joinDate || (employee ? employee.joinDate : ""),
-      employeeCode: user.employeeCode || (employee ? employee.employeeCode : ""),
-      avatar: user.avatar || (employee ? employee.avatar : ""),
-    };
-    
-    res.json({
-      success: true,
-      profile,
-      user
-    })
-    // res.json(user);
+    res.json(user);
   } catch (err) {
     console.error("Profile error:", err);
     res.status(500).json({ message: 'Server error' });
