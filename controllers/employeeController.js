@@ -34,7 +34,7 @@ export const getEmployees = async (req, res) => {
           salaryData,
         },
       ];
-    } else if (["hr", "owner"].includes(req.user.role)) {
+    } else if (["hr", "owner", "admin"].includes(req.user.role)) {
       // HR / Owner → company ke sab employees
       const allEmployees = await Employee.find({ companyId: req.user.companyId }).sort({ createdAt: -1 });
 
