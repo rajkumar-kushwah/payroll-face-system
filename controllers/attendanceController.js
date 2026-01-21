@@ -267,8 +267,43 @@ export const autoCheckoutBySchedule = async () => {
 // };
 
 
+// export const computeDerivedFields = (record, schedule) => {
+//   // 1️⃣ Safety check
+//   if (!record.checkIn || !record.checkOut || !schedule?.outTime) {
+//     record.totalHours = 0;
+//     record.overtimeHours = 0;
+//     record.isOvertime = false;
+//     return;
+//   }
+
+//   // 2️⃣ Check-in / Check-out Date
+//   const checkIn = new Date(record.checkIn);
+//   const checkOut = new Date(record.checkOut);
+
+//   // 3️⃣ Total working hours
+//   const totalMinutes = Math.floor((checkOut - checkIn) / 60000);
+//   record.totalHours = +(totalMinutes / 60).toFixed(2);
+
+//   // 4️⃣ Schedule OUT time (18:30)
+//   const workDate = record.date.toISOString().split("T")[0]; // YYYY-MM-DD
+//   const scheduleOut = hhmmToDateUTC(workDate, schedule.outTime);
+
+//   // 5️⃣ Overtime calculation (ONLY after 6:30 PM)
+//   if (checkOut.getTime() > scheduleOut.getTime()) {
+//     const otMinutes = Math.floor(
+//       (checkOut.getTime() - scheduleOut.getTime()) / 60000
+//     );
+
+//     record.overtimeHours = +(otMinutes / 60).toFixed(2);
+//     record.isOvertime = true;
+//   } else {
+//     record.overtimeHours = 0;
+//     record.isOvertime = false;
+//   }
+// };
+
+ 
 export const computeDerivedFields = (record, schedule) => {
-  // 1️⃣ Safety check
   if (!record.checkIn || !record.checkOut || !schedule?.outTime) {
     record.totalHours = 0;
     record.overtimeHours = 0;
@@ -276,24 +311,26 @@ export const computeDerivedFields = (record, schedule) => {
     return;
   }
 
-  // 2️⃣ Check-in / Check-out Date
   const checkIn = new Date(record.checkIn);
   const checkOut = new Date(record.checkOut);
 
-  // 3️⃣ Total working hours
+  // Total hours
   const totalMinutes = Math.floor((checkOut - checkIn) / 60000);
   record.totalHours = +(totalMinutes / 60).toFixed(2);
 
-  // 4️⃣ Schedule OUT time (18:30)
-  const workDate = record.date.toISOString().split("T")[0]; // YYYY-MM-DD
+  // Schedule OUT (IST → UTC)
+  const workDate = record.date.toISOString().split("T")[0];
   const scheduleOut = hhmmToDateUTC(workDate, schedule.outTime);
 
-  // 5️⃣ Overtime calculation (ONLY after 6:30 PM)
-  if (checkOut.getTime() > scheduleOut.getTime()) {
-    const otMinutes = Math.floor(
-      (checkOut.getTime() - scheduleOut.getTime()) / 60000
-    );
+  if (!scheduleOut || isNaN(scheduleOut.getTime())) {
+    record.overtimeHours = 0;
+    record.isOvertime = false;
+    return;
+  }
 
+  // Overtime
+  if (checkOut > scheduleOut) {
+    const otMinutes = Math.floor((checkOut - scheduleOut) / 60000);
     record.overtimeHours = +(otMinutes / 60).toFixed(2);
     record.isOvertime = true;
   } else {
@@ -301,7 +338,6 @@ export const computeDerivedFields = (record, schedule) => {
     record.isOvertime = false;
   }
 };
-
 
 
 /* ======================================================

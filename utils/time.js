@@ -68,11 +68,25 @@ export const formatTimeIST = (date) => {
   });
 };
 
+// export const hhmmToDateUTC = (date, hhmm) => {
+//   if (!hhmm) return null;
+//   const [hours, minutes] = hhmm.split(":").map(Number);
+//   const d = new Date(date);
+//   d.setUTCHours(hours, minutes, 0, 0); // UTC-safe
+//   return d;
+// };
+
 export const hhmmToDateUTC = (date, hhmm) => {
   if (!hhmm) return null;
-  const [hours, minutes] = hhmm.split(":").map(Number);
-  const d = new Date(date);
-  d.setUTCHours(hours, minutes, 0, 0); // UTC-safe
+
+  const [h, m] = hhmm.split(":").map(Number);
+
+  // date is YYYY-MM-DD
+  const d = new Date(`${date}T00:00:00.000Z`);
+
+  // IST → UTC
+  d.setUTCHours(h - 5, m - 30, 0, 0);
+
   return d;
 };
 
