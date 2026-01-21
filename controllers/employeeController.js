@@ -247,23 +247,6 @@ export const updateEmployeeProfile = async (req, res) => {
   }
 };
 
-// -------------------------------------------------------------------
-// DELETE EMPLOYEE
-// -------------------------------------------------------------------
-// export const deleteEmployee = async (req, res) => {
-//   try {
-//     const emp = await Employee.findOneAndDelete({
-//       _id: req.params.id,
-//       companyId: req.user.companyId,
-//     });
-
-//     if (!emp) return res.status(404).json({ message: "Employee not found" });
-
-//     res.json({ success: true, message: "Employee deleted" });
-//   } catch (err) {
-//     res.status(500).json({ message: "Server error", error: err.message });
-//   }
-// };
 
 export const deleteEmployee = async (req, res) => {
   const session = await mongoose.startSession();
