@@ -116,16 +116,20 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    // ======================
+   
     // CORRECT EMAIL CALL
-    // ======================
-    await sendInfoEmail(
-      newUser.name,             // ✔️ name
-      newUser.email,            // ✔️ email
-      req.ip,                   // ✔️ ip
-      req.headers['user-agent'],// ✔️ browser info
-      newUser._id               // ✔️ user id (for audit link)
-    );
+  
+  try {
+  await sendInfoEmail(
+    newUser.name,             
+    newUser.email,            
+    req.ip,                   
+    req.headers['user-agent'],
+    newUser._id               
+  );
+} catch (error) {
+  console.error('Error sending email:', error);
+}
 
     // 6. Response
     res.status(201).json({
