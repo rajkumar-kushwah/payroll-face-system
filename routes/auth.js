@@ -116,20 +116,16 @@ router.post('/register', async (req, res) => {
       }
     }
 
-   
+    // ======================
     // CORRECT EMAIL CALL
-  
-  try {
-  await sendInfoEmail(
-    newUser.name,             
-    newUser.email,            
-    req.ip,                   
-    req.headers['user-agent'],
-    newUser._id               
-  );
-} catch (error) {
-  console.error('Error sending email:', error);
-}
+    // ======================
+    await sendInfoEmail(
+      newUser.name,             // ✔️ name
+      newUser.email,            // ✔️ email
+      req.ip,                   // ✔️ ip
+      req.headers['user-agent'],// ✔️ browser info
+      newUser._id               // ✔️ user id (for audit link)
+    );
 
     // 6. Response
     res.status(201).json({
@@ -142,7 +138,6 @@ router.post('/register', async (req, res) => {
 
   } catch (err) {
     console.error("Register error:", err);
-    if (err.stack) console.error(err.stack);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -169,9 +164,9 @@ router.post('/login', async (req, res) => {
     if (!isMatch) return res.status(400).json({ message: 'Incorrect password.' });
 
     // Optional: reCAPTCHA
-    // const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${captchaToken}`;
-    // const { data: captchaData } = await axios.post(verifyUrl, null, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
-    // if (!captchaData.success) return res.status(400).json({ message: 'reCAPTCHA failed.' });
+    const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${captchaToken}`;
+    const { data: captchaData } = await axios.post(verifyUrl, null, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+    if (!captchaData.success) return res.status(400).json({ message: 'reCAPTCHA failed.' });
 
     // Send login email
     const ip = req.headers['x-forwarded-for']?.split(',').shift() || req.socket?.remoteAddress || 'Unknown';
