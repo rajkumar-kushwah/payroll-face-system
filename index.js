@@ -22,7 +22,7 @@ app.use(express.json());
 
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://frontend-payroll-six.vercel.app"
+  "https://fronted-face-attendace.vercel.app"
 ];
 
 
