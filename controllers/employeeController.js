@@ -59,7 +59,6 @@ export const addEmployee = async (req, res) => {
   session.startTransaction();
 
   try {
-    //  Only admin / hr / owner
     if (!["admin", "hr", "owner"].includes(req.user.role)) {
       return res.status(403).json({ message: "Not authorized" });
     }
@@ -77,31 +76,48 @@ export const addEmployee = async (req, res) => {
       faceDescriptor,
     } = req.body;
 
+    //  Parse faceDescriptor
+    let parsedFaceDescriptor;
+    try {
+      parsedFaceDescriptor =
+        typeof faceDescriptor === "string"
+          ? JSON.parse(faceDescriptor)
+          : faceDescriptor;
+    } catch {
+      return res.status(400).json({ message: "Invalid face data format" });
+    }
+
     //  Validation
-    if (!name || !faceDescriptor) {
+    if (!name || !parsedFaceDescriptor) {
       return res
         .status(400)
         .json({ message: "Name and face data are required." });
     }
 
-    if (!Array.isArray(faceDescriptor) || faceDescriptor.length !== 128) {
+    if (
+      !Array.isArray(parsedFaceDescriptor) ||
+      parsedFaceDescriptor.length !== 128
+    ) {
       return res.status(400).json({ message: "Invalid face data" });
     }
 
-    //  Duplicate email (company wise)
+    //  Duplicate email
     if (email) {
       const exists = await Employee.findOne({
         email: email.toLowerCase(),
         companyId: req.user.companyId,
-        isDeleted: false,
       });
       if (exists) {
-        return res.status(400).json({ message: "Employee with this email already exists." });
+        return res.status(400).json({
+          message: "Employee with this email already exists.",
+        });
       }
     }
 
     //  Duplicate face check
-    const employees = await Employee.find({ companyId: req.user.companyId });
+    const employees = await Employee.find({
+      companyId: req.user.companyId,
+    }).session(session);
 
     const euclideanDistance = (d1, d2) =>
       Math.sqrt(d1.reduce((s, v, i) => s + (v - d2[i]) ** 2, 0));
@@ -109,7 +125,11 @@ export const addEmployee = async (req, res) => {
     for (const emp of employees) {
       if (!emp.faceDescriptor || emp.faceDescriptor.length !== 128) continue;
 
-      const distance = euclideanDistance(emp.faceDescriptor, faceDescriptor);
+      const distance = euclideanDistance(
+        emp.faceDescriptor,
+        parsedFaceDescriptor
+      );
+
       if (distance < 0.35) {
         return res.status(400).json({
           message: "This face is already registered",
@@ -117,7 +137,7 @@ export const addEmployee = async (req, res) => {
       }
     }
 
-    //  Create Employee ONLY
+    //  Create employee
     const employee = await Employee.create(
       [
         {
@@ -133,7 +153,7 @@ export const addEmployee = async (req, res) => {
           dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
           notes,
           faceImage: req.file?.path || "",
-          faceDescriptor,
+          faceDescriptor: parsedFaceDescriptor,
         },
       ],
       { session }
@@ -154,6 +174,7 @@ export const addEmployee = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 
 
 

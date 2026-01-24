@@ -31,9 +31,13 @@ const employeeSchema = new mongoose.Schema(
 
     //  CORE FACE DATA
     faceDescriptor: {
-      type: [Number], // 128 values
-      required: true,
+      type: [Number],
+      validate: {
+        validator: v => !v || v.length === 128,
+        message: "Face descriptor must be 128 values"
+      }
     },
+
 
     name: { type: String, required: true },
 
@@ -41,7 +45,6 @@ const employeeSchema = new mongoose.Schema(
     email: {
       type: String,
       lowercase: true,
-      required: true,
     },
 
     phone: { type: String, default: "" },
