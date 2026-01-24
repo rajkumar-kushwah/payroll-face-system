@@ -185,9 +185,11 @@ export const updateEmployeeProfile = async (req, res) => {
   try {
     const updateData = {};
 
-    // Copy all fields from body
+    // Copy all fields from body except empty strings
     Object.keys(req.body).forEach((key) => {
-      if (req.body[key] !== undefined) updateData[key] = req.body[key];
+      if (req.body[key] !== undefined && req.body[key] !== "") {
+        updateData[key] = req.body[key];
+      }
     });
 
     // Update face image if file uploaded
@@ -202,7 +204,7 @@ export const updateEmployeeProfile = async (req, res) => {
 
     if (!emp) return res.status(404).json({ message: "Employee not found" });
 
-    // Sync with User collection if needed
+    // Sync with User collection if employeeId exists
     const userUpdate = {};
     if (updateData.name) userUpdate.name = updateData.name;
     if (updateData.phone) userUpdate.phone = updateData.phone;
@@ -212,10 +214,11 @@ export const updateEmployeeProfile = async (req, res) => {
 
     res.json({ success: true, message: "Employee updated successfully", employee: emp });
   } catch (err) {
-    console.error("Update Employee Error:", err);
+    console.error("Update Employee Error:", err.stack || err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 
 // -------------------------------------------------------------------
 // DELETE EMPLOYEE
@@ -251,78 +254,6 @@ export const deleteEmployee = async (req, res) => {
   }
 };
 
-
-// -------------------------------------------------------------------
-// SEARCH EMPLOYEES
-// -------------------------------------------------------------------
-// export const searchEmployees = async (req, res) => {
-//   try {
-//     const { search } = req.query;
-//     const query = { companyId: req.user.companyId };
-
-//     if (search) {
-//       const regex = { $regex: search, $options: "i" };
-//       query.$or = [
-//         { name: regex },
-//         { email: regex },
-//         { phone: regex },
-//         { department: regex },
-//         { jobRole: regex },
-//         { employeeCode: regex },
-//         { status: regex },
-//       ];
-
-//       if (mongoose.isValidObjectId(search)) {
-//         query.$or.push({ _id: new mongoose.Types.ObjectId(search) });
-//       }
-//     }
-
-//     const employees = await Employee.find(query).sort({ createdAt: -1 });
-
-//     res.json({
-//       success: true,
-//       count: employees.length,
-//       employees,
-//     });
-//   } catch (err) {
-//     res.status(500).json({ message: "Server error", error: err.message });
-//   }
-// };
-
-// // -------------------------------------------------------------------
-// // FILTER EMPLOYEES
-// // -------------------------------------------------------------------
-// export const filterEmployees = async (req, res) => {
-//   try {
-//     const { jobRole, department, minSalary, maxSalary, sort } = req.query;
-//     const query = { companyId: req.user.companyId };
-
-//     if (jobRole) query.jobRole = jobRole;
-//     if (department) query.department = department;
-
-//     if (minSalary || maxSalary) {
-//       query.basicSalary = {};
-//       if (minSalary) query.basicSalary.$gte = Number(minSalary);
-//       if (maxSalary) query.basicSalary.$lte = Number(maxSalary);
-//     }
-
-//     let employees = await Employee.find(query);
-
-//     if (sort === "a-z") employees.sort((a, b) => a.name.localeCompare(b.name));
-//     else if (sort === "salary-high")
-//       employees.sort((a, b) => b.basicSalary - a.basicSalary);
-//     else if (sort === "latest")
-//       employees.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-//     res.json({
-//       success: true,
-//       count: employees.length,
-//       employees,
-//     });
-//   } catch (err) {
-//     res.status(500).json({ message: "Server error", error: err.message });
-//   }
-// };
 
 // -------------------------------------------------------------------
 // SEARCH EMPLOYEES

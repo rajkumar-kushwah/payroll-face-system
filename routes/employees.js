@@ -18,7 +18,7 @@ router.use(protect);
 router.get("/search", searchEmployees);
 
 // AVATAR ROUTES – before :id
-router.put("/profile/:id", upload.single("avatar"), updateEmployeeProfile);
+router.put("/profile/:id", upload.single("faceImage"), updateEmployeeProfile);
 
 // NORMAL EMPLOYEE ROUTES
 router.get("/", getEmployees);
