@@ -21,6 +21,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
+    "face-api.js": "^0.22.2",
     "helmet": "^8.1.0",
     "html-pdf": "^3.0.1",
     "json2csv": "^6.0.0-alpha.2",
