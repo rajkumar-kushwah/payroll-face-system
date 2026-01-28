@@ -50,14 +50,10 @@ const attendanceSchema = new mongoose.Schema({
 
 //  UNIQUE INDEX (ek employee ek date par ek hi attendance)
 attendanceSchema.index(
-  { employeeId: 1, date: 1, companyId: 1 },
+  { employee: 1, date: 1 },
   { unique: true }
 );
 
-attendanceSchema.index(
-  { employee: 1, date: 1, companyId: 1 },
-  { unique: true }
-);
 
 
 export default mongoose.model("Attendance", attendanceSchema);

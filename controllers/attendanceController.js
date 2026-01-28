@@ -93,3 +93,146 @@ export const faceScanAttendance = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+
+export const faceVerify = async (req, res) => {
+  try {
+    const { image } = req.body;
+    if (!image) {
+      return res.status(400).json({ success: false, message: "Image missing" });
+    }
+
+    // base64 → image
+    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+    const img = await canvas.loadImage(buffer);
+
+    // detect face
+    const detection = await faceapi
+      .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+
+    if (!detection) {
+      return res.json({ success: false, message: "Face not detected" });
+    }
+
+    const descriptor = detection.descriptor;
+
+    const employees = await Employee.find({
+      faceDescriptor: { $exists: true }
+    });
+
+    let matchedEmployee = null;
+    let minDistance = Infinity;
+
+    for (const emp of employees) {
+      const distance = faceapi.euclideanDistance(
+        emp.faceDescriptor,
+        descriptor
+      );
+
+      if (distance < 0.6 && distance < minDistance) {
+        minDistance = distance;
+        matchedEmployee = emp;
+      }
+    }
+
+    if (!matchedEmployee) {
+      return res.json({ success: false, message: "Employee not recognized" });
+    }
+
+    // check today's attendance
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const attendance = await Attendance.findOne({
+      employee: matchedEmployee._id,
+      date: today
+    });
+
+    return res.json({
+      success: true,
+      employee: {
+        _id: matchedEmployee._id,
+        name: matchedEmployee.name,
+        employeeCode: matchedEmployee.employeeCode,
+        faceImage: matchedEmployee.faceImage
+      },
+      alreadyPunchedIn: !!attendance?.checkIn,
+      alreadyPunchedOut: !!attendance?.checkOut
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const punchIn = async (req, res) => {
+  try {
+    const { employeeId, address, faceImage } = req.body;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let attendance = await Attendance.findOne({
+      employee: employeeId,
+      date: today
+    });
+
+    if (attendance?.checkIn) {
+      return res.json({ success: false, message: "Already punched in" });
+    }
+
+    attendance = await Attendance.create({
+      employee: employeeId,
+      date: today,
+      faceImage,
+      checkIn: {
+        time: new Date(),
+        address
+      }
+    });
+
+    res.json({ success: true, message: "Punch in successful" });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+export const punchOut = async (req, res) => {
+  try {
+    const { employeeId, address } = req.body;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const attendance = await Attendance.findOne({
+      employee: employeeId,
+      date: today
+    });
+
+    if (!attendance?.checkIn) {
+      return res.json({ success: false, message: "Punch in first" });
+    }
+
+    if (attendance.checkOut) {
+      return res.json({ success: false, message: "Already punched out" });
+    }
+
+    attendance.checkOut = {
+      time: new Date(),
+      address
+    };
+
+    await attendance.save();
+
+    res.json({ success: true, message: "Punch out successful" });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
