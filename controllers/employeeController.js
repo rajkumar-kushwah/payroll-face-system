@@ -158,6 +158,9 @@ export const addEmployee = async (req, res) => {
       ],
       { session }
     );
+    // 2. Save employeeId as own _id
+    employee.employeeId = employee._id;
+    await employee.save({ session });
 
     await session.commitTransaction();
     session.endSession();
