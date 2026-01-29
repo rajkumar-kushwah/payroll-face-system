@@ -1,238 +1,225 @@
-import * as faceapi from "face-api.js";
-import canvas from "canvas";
 import Employee from "../models/Employee.js";
 import Attendance from "../models/Attendance.js";
-import path from "path";
-import { fileURLToPath } from "url";
+import { verifyEmployeeFace } from "../utils/faceMatch.js";
 
-const { Canvas, Image, ImageData } = canvas;
-faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
+/* OFFICE RULES */
+const OFFICE_IN_HOUR = 9;
+const OFFICE_IN_MIN = 30;
+const FULL_DAY_MINUTES = 480;
+const HALF_DAY_MINUTES = 240;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const MODEL_PATH = path.join(__dirname, "../models");
+/* helper */
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
-// LOAD MODELS ONCE
-await faceapi.nets.tinyFaceDetector.loadFromDisk(MODEL_PATH);
-await faceapi.nets.faceLandmark68Net.loadFromDisk(MODEL_PATH);
-await faceapi.nets.faceRecognitionNet.loadFromDisk(MODEL_PATH);
-
-export const faceScanAttendance = async (req, res) => {
+/*  VERIFY FACE ONLY */
+export const verifyFace = async (req, res) => {
   try {
-    const { image } = req.body;
-    if (!image) return res.status(400).json({ success: false, message: "Image missing" });
+    const { companyId, descriptors } = req.body;
 
-    // Convert base64 image to canvas
-    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
-    const img = await canvas.loadImage(buffer);
-
-    // Detect face & descriptor
-    const detection = await faceapi
-      .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks()
-      .withFaceDescriptor();
-
-    if (!detection) return res.json({ success: false, message: "Face not detected" });
-
-    const descriptor = detection.descriptor;
-
-    // Fetch all employees with saved descriptors
-    const employees = await Employee.find({ faceDescriptor: { $exists: true } });
-
-    // Match employee using Euclidean distance
-    let matchedEmployee = null;
-    let minDistance = Infinity;
-
-    for (const emp of employees) {
-      const empDescriptor = emp.faceDescriptor; // should be an array of 128 numbers
-      const distance = faceapi.euclideanDistance(empDescriptor, descriptor);
-      if (distance < 0.6 && distance < minDistance) {
-        minDistance = distance;
-        matchedEmployee = emp;
-      }
+    if (!companyId || !descriptors || descriptors.length < 2) {
+      return res.status(400).json({ message: "Invalid face data" });
     }
-
-    if (!matchedEmployee) return res.json({ success: false, message: "Employee not recognized" });
-
-    // Attendance logic
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    let attendance = await Attendance.findOne({
-      employee: matchedEmployee._id,
-      date: today,
-    });
-
-    let type = "IN";
-
-    if (!attendance) {
-      attendance = await Attendance.create({
-        employee: matchedEmployee._id,
-        date: today,
-        checkIn: new Date(),
-      });
-    } else if (!attendance.checkOut) {
-      attendance.checkOut = new Date();
-      await attendance.save();
-      type = "OUT";
-    } else {
-      return res.json({ success: false, message: "Already punched out today" });
-    }
-
-    return res.json({
-      success: true,
-      name: matchedEmployee.name,
-      employeeCode: matchedEmployee.employeeCode,
-      type,
-      time: new Date(),
-    });
-
-  } catch (error) {
-    console.error("Face scan attendance error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
-  }
-};
-
-
-export const faceVerify = async (req, res) => {
-  try {
-    const { image } = req.body;
-    if (!image) {
-      return res.status(400).json({ success: false, message: "Image missing" });
-    }
-
-    // base64 → image
-    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
-    const img = await canvas.loadImage(buffer);
-
-    // detect face
-    const detection = await faceapi
-      .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks()
-      .withFaceDescriptor();
-
-    if (!detection) {
-      return res.json({ success: false, message: "Face not detected" });
-    }
-
-    const descriptor = detection.descriptor;
 
     const employees = await Employee.find({
+      companyId,
+      status: "active",
       faceDescriptor: { $exists: true }
     });
 
-    let matchedEmployee = null;
-    let minDistance = Infinity;
+    const result = verifyEmployeeFace(employees, descriptors);
 
-    for (const emp of employees) {
-      const distance = faceapi.euclideanDistance(
-        emp.faceDescriptor,
-        descriptor
-      );
-
-      if (distance < 0.6 && distance < minDistance) {
-        minDistance = distance;
-        matchedEmployee = emp;
-      }
+    if (!result) {
+      return res.status(401).json({ message: "Face not matched" });
     }
 
-    if (!matchedEmployee) {
-      return res.json({ success: false, message: "Employee not recognized" });
-    }
+    const emp = result.employee;
 
-    // check today's attendance
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const attendance = await Attendance.findOne({
-      employee: matchedEmployee._id,
-      date: today
-    });
-
-    return res.json({
-      success: true,
+    res.json({
+      verified: true,
       employee: {
-        _id: matchedEmployee._id,
-        name: matchedEmployee.name,
-        employeeCode: matchedEmployee.employeeCode,
-        faceImage: matchedEmployee.faceImage
+        id: emp._id,
+        name: emp.name,
+        code: emp.employeeCode,
+        faceImage: emp.faceImage
       },
-      alreadyPunchedIn: !!attendance?.checkIn,
-      alreadyPunchedOut: !!attendance?.checkOut
+      confidence: result.confidence
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
+/*  PUNCH IN */
 export const punchIn = async (req, res) => {
   try {
-    const { employeeId, address, faceImage } = req.body;
+    const { companyId, employeeId, location } = req.body;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    let attendance = await Attendance.findOne({
-      employee: employeeId,
-      date: today
-    });
-
-    if (attendance?.checkIn) {
-      return res.json({ success: false, message: "Already punched in" });
+    const employee = await Employee.findById(employeeId);
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
     }
 
-    attendance = await Attendance.create({
-      employee: employeeId,
+    const today = startOfToday();
+    const now = new Date();
+
+    const officeIn = new Date();
+    officeIn.setHours(OFFICE_IN_HOUR, OFFICE_IN_MIN, 0, 0);
+
+    let lateMinutes = 0;
+    if (now > officeIn) {
+      lateMinutes = Math.floor((now - officeIn) / 60000);
+    }
+
+    const attendance = await Attendance.create({
+      companyId,
+      employeeId,
+      employeeCode: employee.employeeCode,
+      employeeName: employee.name,
+      faceImage: employee.faceImage,
       date: today,
-      faceImage,
-      checkIn: {
-        time: new Date(),
-        address
-      }
+      inTime: now,
+      inLocation: location,
+      lateMinutes,
+      status: "PRESENT"
     });
 
-    res.json({ success: true, message: "Punch in successful" });
+    res.json({
+      message: "Punch IN successful",
+      inTime: now,
+      lateMinutes
+    });
 
   } catch (err) {
-    res.status(500).json({ success: false, message: "Server error" });
+    if (err.code === 11000) {
+      return res.status(409).json({ message: "Already punched IN today" });
+    }
+    res.status(500).json({ message: "Server error" });
   }
 };
 
-
+/*  PUNCH OUT */
 export const punchOut = async (req, res) => {
   try {
-    const { employeeId, address } = req.body;
+    const { companyId, employeeId, location } = req.body;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = startOfToday();
+    const now = new Date();
 
     const attendance = await Attendance.findOne({
-      employee: employeeId,
+      companyId,
+      employeeId,
       date: today
     });
 
-    if (!attendance?.checkIn) {
-      return res.json({ success: false, message: "Punch in first" });
+    if (!attendance || !attendance.inTime) {
+      return res.status(400).json({ message: "Punch IN not found" });
     }
 
-    if (attendance.checkOut) {
-      return res.json({ success: false, message: "Already punched out" });
+    if (attendance.outTime) {
+      return res.status(409).json({ message: "Already punched OUT" });
     }
 
-    attendance.checkOut = {
-      time: new Date(),
-      address
-    };
+    const workingMinutes =
+      Math.floor((now - attendance.inTime) / 60000);
+
+    let status = "ABSENT";
+    if (workingMinutes >= FULL_DAY_MINUTES) status = "PRESENT";
+    else if (workingMinutes >= HALF_DAY_MINUTES) status = "HALF";
+
+    attendance.outTime = now;
+    attendance.outLocation = location;
+    attendance.workingMinutes = workingMinutes;
+    attendance.status = status;
 
     await attendance.save();
 
-    res.json({ success: true, message: "Punch out successful" });
+    res.json({
+      message: "Punch OUT successful",
+      outTime: now,
+      workingMinutes,
+      status
+    });
 
   } catch (err) {
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const getEmployeeAttendance = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+
+    const records = await Attendance.find({ employeeId })
+      .sort({ date: -1 });
+
+    res.json(records);
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const getAttendanceByRange = async (req, res) => {
+  try {
+    const { companyId, from, to } = req.query;
+
+    const records = await Attendance.find({
+      companyId,
+      date: {
+        $gte: new Date(from),
+        $lte: new Date(to)
+      }
+    }).sort({ date: 1 });
+
+    res.json(records);
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const getAttendanceList = async (req, res) => {
+  try {
+    const { companyId, page = 1, limit = 20 } = req.query;
+
+    const data = await Attendance.find({ companyId })
+      .sort({ date: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    const total = await Attendance.countDocuments({ companyId });
+
+    res.json({
+      total,
+      page: Number(page),
+      data
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const getTodayAttendance = async (req, res) => {
+  try {
+    const { companyId } = req.params;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const attendance = await Attendance.find({
+      companyId,
+      date: today
+    }).sort({ inTime: 1 });
+
+    res.json(attendance);
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
   }
 };

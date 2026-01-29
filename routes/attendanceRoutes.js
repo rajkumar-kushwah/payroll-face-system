@@ -1,9 +1,26 @@
 import express from "express";
-import { faceScanAttendance } from "../controllers/attendanceController.js";
+import {
+  verifyFace,
+  punchIn,
+  punchOut,
+  getTodayAttendance,
+  getEmployeeAttendance,
+  getAttendanceByRange,
+  getAttendanceList
+} from "../controllers/attendanceController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/face-scan", protect, faceScanAttendance);
+// POST
+router.post("/verify-face", protect, verifyFace);
+router.post("/punch-in", protect, punchIn);
+router.post("/punch-out", protect, punchOut);
+
+// GET
+router.get("/today/:companyId", protect, getTodayAttendance);
+router.get("/employee/:employeeId", protect, getEmployeeAttendance);
+router.get("/range", protect, getAttendanceByRange);
+router.get("/list", protect, getAttendanceList);
 
 export default router;

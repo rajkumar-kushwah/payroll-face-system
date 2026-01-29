@@ -1,59 +1,64 @@
 import mongoose from "mongoose";
 
 const attendanceSchema = new mongoose.Schema({
-  employee: {
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Company",
+    required: true
+  },
+
+  employeeId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Employee",
     required: true
   },
 
-  //  DATE
+  employeeCode: {
+    type: String,
+    required: true
+  },
+
+  employeeName: String,
+
+  faceImage: String, // register wali image
+
   date: {
     type: Date,
     required: true
   },
 
-  //  QUICK DISPLAY (table fast load)
-  employeeName: String,
+  inTime: Date,
+  outTime: Date,
 
-  //  FACE SNAP
-  faceImage: String, // image URL / base64 / cloudinary url
+  inLocation: String,
+  outLocation: String,
 
-  //  IN DATA
-  checkIn: {
-    time: Date,
-    address: String
+  workingMinutes: {
+    type: Number,
+    default: 0
   },
 
-  //  OUT DATA
-  checkOut: {
-    time: Date,
-    address: String
+  lateMinutes: {
+    type: Number,
+    default: 0
   },
-  
-  //  CALCULATED
-  workedMinutes: Number,
 
-  attendanceType: {
-    type: String,
-    enum: ["EARLY", "ON_TIME", "LATE"],
+  earlyMinutes: {
+    type: Number,
+    default: 0
   },
 
   status: {
     type: String,
-    enum: ["H", "A", "L"],
-    default: "H"
+    enum: ["PRESENT", "HALF", "ABSENT"],
+    default: "PRESENT"
   }
 
 }, { timestamps: true });
 
-
-//  UNIQUE INDEX (ek employee ek date par ek hi attendance)
 attendanceSchema.index(
-  { employee: 1, date: 1 },
+  { employeeId: 1, companyId: 1, date: 1 },
   { unique: true }
 );
-
-
 
 export default mongoose.model("Attendance", attendanceSchema);
