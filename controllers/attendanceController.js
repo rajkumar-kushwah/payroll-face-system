@@ -18,11 +18,16 @@ function startOfToday() {
 /*  VERIFY FACE ONLY */
 export const verifyFace = async (req, res) => {
   try {
-    const { companyId, descriptors } = req.body;
+    const { companyId, image } = req.body;
 
-    if (!companyId || !descriptors || descriptors.length < 2) {
+    if (!companyId || !image) {
       return res.status(400).json({ message: "Invalid face data" });
     }
+
+    // base64 prefix hatao
+    const base64 = image.startsWith("data:image")
+      ? image.split(",")[1]
+      : image;
 
     const employees = await Employee.find({
       companyId,
@@ -30,7 +35,8 @@ export const verifyFace = async (req, res) => {
       faceDescriptor: { $exists: true }
     });
 
-    const result = verifyEmployeeFace(employees, descriptors);
+    const result = await verifyEmployeeFace(employees, base64); 
+    // 👆 yahan image pass hogi
 
     if (!result) {
       return res.status(401).json({ message: "Face not matched" });
@@ -50,9 +56,11 @@ export const verifyFace = async (req, res) => {
     });
 
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /*  PUNCH IN */
 export const punchIn = async (req, res) => {
