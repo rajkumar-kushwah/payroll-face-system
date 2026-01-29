@@ -16,6 +16,52 @@ function startOfToday() {
 }
 
 /*  VERIFY FACE ONLY */
+// export const verifyFace = async (req, res) => {
+//   try {
+//     const { companyId, image } = req.body;
+
+//     if (!companyId || !image) {
+//       return res.status(400).json({ message: "Invalid face data" });
+//     }
+
+//     // base64 prefix hatao
+//     const base64 = image.startsWith("data:image")
+//       ? image.split(",")[1]
+//       : image;
+
+//     const employees = await Employee.find({
+//       companyId,
+//       status: "active",
+//       faceDescriptor: { $exists: true }
+//     });
+
+//     const result = await verifyEmployeeFace(employees, base64); 
+//     // 👆 yahan image pass hogi
+
+//     if (!result) {
+//       return res.status(401).json({ message: "Face not matched" });
+//     }
+
+//     const emp = result.employee;
+
+//     res.json({
+//       verified: true,
+//       employee: {
+//         id: emp._id,
+//         name: emp.name,
+//         code: emp.employeeCode,
+//         faceImage: emp.faceImage
+//       },
+//       confidence: result.confidence
+//     });
+
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+
 export const verifyFace = async (req, res) => {
   try {
     const { companyId, image } = req.body;
@@ -29,14 +75,14 @@ export const verifyFace = async (req, res) => {
       ? image.split(",")[1]
       : image;
 
+    //  Active employees with faceDescriptor
     const employees = await Employee.find({
       companyId,
       status: "active",
       faceDescriptor: { $exists: true }
     });
 
-    const result = await verifyEmployeeFace(employees, base64); 
-    // 👆 yahan image pass hogi
+    const result = await verifyEmployeeFace(employees, base64);
 
     if (!result) {
       return res.status(401).json({ message: "Face not matched" });
@@ -44,6 +90,23 @@ export const verifyFace = async (req, res) => {
 
     const emp = result.employee;
 
+    //  Check today's attendance
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const attendance = await Attendance.findOne({
+      employeeId: emp._id,
+      companyId,
+      date: today
+    });
+
+    let attendanceStatus = "NOT_PUNCHED"; // default
+    if (attendance) {
+      if (attendance.inTime && !attendance.outTime) attendanceStatus = "IN";      // Punch IN done
+      else if (attendance.inTime && attendance.outTime) attendanceStatus = "OUT"; // Punch OUT done
+    }
+
+    //  Send response with attendance status
     res.json({
       verified: true,
       employee: {
@@ -52,7 +115,8 @@ export const verifyFace = async (req, res) => {
         code: emp.employeeCode,
         faceImage: emp.faceImage
       },
-      confidence: result.confidence
+      confidence: result.confidence,
+      attendanceStatus
     });
 
   } catch (err) {
@@ -60,7 +124,6 @@ export const verifyFace = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 /*  PUNCH IN */
 export const punchIn = async (req, res) => {
