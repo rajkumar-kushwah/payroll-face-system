@@ -207,6 +207,20 @@ export const updateEmployeeProfile = async (req, res) => {
 
     if (!emp) return res.status(404).json({ message: "Employee not found" });
 
+    //  Sync attendance AFTER employee confirmed
+    if (updateData.faceImage || updateData.name || updateData.employeeCode) {
+      const attendanceUpdate = {};
+
+      if (updateData.faceImage) attendanceUpdate.faceImage = emp.faceImage;
+      if (updateData.name) attendanceUpdate.employeeName = emp.name;
+      if (updateData.employeeCode) attendanceUpdate.employeeCode = emp.employeeCode;
+
+      await Attendance.updateMany(
+        { employeeId: emp._id },
+        { $set: attendanceUpdate }
+      );
+    }
+
     // Sync with User collection if employeeId exists
     const userUpdate = {};
     if (updateData.name) userUpdate.name = updateData.name;
