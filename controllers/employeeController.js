@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import Employee from "../models/Employee.js";
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
-
+import Attendance from "../models/Attendance.js";
 // -------------------------------------------------------------------
 // GET ALL EMPLOYEES
 // -------------------------------------------------------------------
