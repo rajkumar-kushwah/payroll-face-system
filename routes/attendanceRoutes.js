@@ -6,7 +6,8 @@ import {
   getTodayAttendance,
   getEmployeeAttendance,
   getAttendanceByRange,
-  getAttendanceList
+  getAttendanceList,
+  filterAttendance
 } from "../controllers/attendanceController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -22,5 +23,6 @@ router.get("/today/:companyId", protect, getTodayAttendance);
 router.get("/employee/:employeeId", protect, getEmployeeAttendance);
 router.get("/range", protect, getAttendanceByRange);
 router.get("/list", protect, getAttendanceList);
+router.get("/filter", protect, filterAttendance);
 
 export default router;

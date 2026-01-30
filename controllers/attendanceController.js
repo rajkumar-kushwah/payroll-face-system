@@ -214,12 +214,32 @@ export const filterAttendance = async (req, res) => {
       status
     } = req.query;
 
+    if (!companyId) {
+      return res.status(400).json({ message: "companyId required" });
+    }
+
     let filter = { companyId };
 
-    if (date) filter.date = date;
+    // ✅ Single date filter (full day)
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
 
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+
+      filter.date = { $gte: start, $lte: end };
+    }
+
+    // ✅ Date range filter (full days)
     if (fromDate && toDate) {
-      filter.date = { $gte: fromDate, $lte: toDate };
+      const start = new Date(fromDate);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+
+      filter.date = { $gte: start, $lte: end };
     }
 
     if (employeeId) filter.employeeId = employeeId;
@@ -227,14 +247,21 @@ export const filterAttendance = async (req, res) => {
 
     const data = await Attendance
       .find(filter)
+      .populate("employeeId", "name code") // optional
       .sort({ date: -1, inTime: 1 });
 
-    res.json({ success: true, data });
+    res.json({
+      success: true,
+      count: data.length,
+      data
+    });
 
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /* ================= PAGINATED LIST ================= */
 export const getAttendanceList = async (req, res) => {
