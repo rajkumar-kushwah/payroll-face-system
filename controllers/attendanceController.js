@@ -2,66 +2,18 @@ import Employee from "../models/Employee.js";
 import Attendance from "../models/Attendance.js";
 import { verifyEmployeeFace } from "../utils/faceMatch.js";
 
-/* OFFICE RULES */
+/* ================= OFFICE RULES ================= */
 const OFFICE_IN_HOUR = 9;
 const OFFICE_IN_MIN = 30;
 const FULL_DAY_MINUTES = 480;
 const HALF_DAY_MINUTES = 240;
 
-/* helper */
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+/* ================= HELPERS ================= */
+function getDateString(d = new Date()) {
+  return d.toISOString().slice(0, 10); // "YYYY-MM-DD"
 }
 
-/*  VERIFY FACE ONLY */
-// export const verifyFace = async (req, res) => {
-//   try {
-//     const { companyId, image } = req.body;
-
-//     if (!companyId || !image) {
-//       return res.status(400).json({ message: "Invalid face data" });
-//     }
-
-//     // base64 prefix hatao
-//     const base64 = image.startsWith("data:image")
-//       ? image.split(",")[1]
-//       : image;
-
-//     const employees = await Employee.find({
-//       companyId,
-//       status: "active",
-//       faceDescriptor: { $exists: true }
-//     });
-
-//     const result = await verifyEmployeeFace(employees, base64); 
-//     // 👆 yahan image pass hogi
-
-//     if (!result) {
-//       return res.status(401).json({ message: "Face not matched" });
-//     }
-
-//     const emp = result.employee;
-
-//     res.json({
-//       verified: true,
-//       employee: {
-//         id: emp._id,
-//         name: emp.name,
-//         code: emp.employeeCode,
-//         faceImage: emp.faceImage
-//       },
-//       confidence: result.confidence
-//     });
-
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ message: "Server error" });
-//   }
-// };
-
-
+/* ================= VERIFY FACE ================= */
 export const verifyFace = async (req, res) => {
   try {
     const { companyId, image } = req.body;
@@ -70,12 +22,10 @@ export const verifyFace = async (req, res) => {
       return res.status(400).json({ message: "Invalid face data" });
     }
 
-    // base64 prefix hatao
     const base64 = image.startsWith("data:image")
       ? image.split(",")[1]
       : image;
 
-    //  Active employees with faceDescriptor
     const employees = await Employee.find({
       companyId,
       status: "active",
@@ -89,24 +39,20 @@ export const verifyFace = async (req, res) => {
     }
 
     const emp = result.employee;
-
-    //  Check today's attendance
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getDateString();
 
     const attendance = await Attendance.findOne({
-      employeeId: emp._id,
       companyId,
+      employeeId: emp._id,
       date: today
     });
 
-    let attendanceStatus = "NOT_PUNCHED"; // default
+    let attendanceStatus = "NOT_PUNCHED";
     if (attendance) {
-      if (attendance.inTime && !attendance.outTime) attendanceStatus = "IN";      // Punch IN done
-      else if (attendance.inTime && attendance.outTime) attendanceStatus = "OUT"; // Punch OUT done
+      if (attendance.inTime && !attendance.outTime) attendanceStatus = "IN";
+      else if (attendance.inTime && attendance.outTime) attendanceStatus = "OUT";
     }
 
-    //  Send response with attendance status
     res.json({
       verified: true,
       employee: {
@@ -125,7 +71,7 @@ export const verifyFace = async (req, res) => {
   }
 };
 
-/*  PUNCH IN */
+/* ================= PUNCH IN ================= */
 export const punchIn = async (req, res) => {
   try {
     const { companyId, employeeId, location } = req.body;
@@ -135,7 +81,7 @@ export const punchIn = async (req, res) => {
       return res.status(404).json({ message: "Employee not found" });
     }
 
-    const today = startOfToday();
+    const today = getDateString();
     const now = new Date();
 
     const officeIn = new Date();
@@ -152,7 +98,7 @@ export const punchIn = async (req, res) => {
       employeeCode: employee.employeeCode,
       employeeName: employee.name,
       faceImage: employee.faceImage,
-      date: today,
+      date: today,                 //  STRING
       inTime: now,
       inLocation: location,
       lateMinutes,
@@ -161,7 +107,7 @@ export const punchIn = async (req, res) => {
 
     res.json({
       message: "Punch IN successful",
-      inTime: now,
+      inTime: attendance.inTime,
       lateMinutes
     });
 
@@ -173,12 +119,12 @@ export const punchIn = async (req, res) => {
   }
 };
 
-/*  PUNCH OUT */
+/* ================= PUNCH OUT ================= */
 export const punchOut = async (req, res) => {
   try {
     const { companyId, employeeId, location } = req.body;
 
-    const today = startOfToday();
+    const today = getDateString();
     const now = new Date();
 
     const attendance = await Attendance.findOne({
@@ -195,8 +141,9 @@ export const punchOut = async (req, res) => {
       return res.status(409).json({ message: "Already punched OUT" });
     }
 
-    const workingMinutes =
-      Math.floor((now - attendance.inTime) / 60000);
+    const workingMinutes = Math.floor(
+      (now - attendance.inTime) / 60000
+    );
 
     let status = "ABSENT";
     if (workingMinutes >= FULL_DAY_MINUTES) status = "PRESENT";
@@ -211,7 +158,7 @@ export const punchOut = async (req, res) => {
 
     res.json({
       message: "Punch OUT successful",
-      outTime: now,
+      outTime: attendance.outTime,
       workingMinutes,
       status
     });
@@ -221,6 +168,7 @@ export const punchOut = async (req, res) => {
   }
 };
 
+/* ================= EMPLOYEE ATTENDANCE ================= */
 export const getEmployeeAttendance = async (req, res) => {
   try {
     const { employeeId } = req.params;
@@ -235,25 +183,60 @@ export const getEmployeeAttendance = async (req, res) => {
   }
 };
 
-export const getAttendanceByRange = async (req, res) => {
+/* ================= TODAY ATTENDANCE ================= */
+export const getTodayAttendance = async (req, res) => {
   try {
-    const { companyId, from, to } = req.query;
+    const { companyId } = req.params;
 
-    const records = await Attendance.find({
+    const today = getDateString();
+
+    const attendance = await Attendance.find({
       companyId,
-      date: {
-        $gte: new Date(from),
-        $lte: new Date(to)
-      }
-    }).sort({ date: 1 });
+      date: today
+    }).sort({ inTime: 1 });
 
-    res.json(records);
+    res.json(attendance);
 
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
 };
 
+/* ================= FILTER ATTENDANCE ================= */
+export const filterAttendance = async (req, res) => {
+  try {
+    const {
+      companyId,
+      date,
+      fromDate,
+      toDate,
+      employeeId,
+      status
+    } = req.query;
+
+    let filter = { companyId };
+
+    if (date) filter.date = date;
+
+    if (fromDate && toDate) {
+      filter.date = { $gte: fromDate, $lte: toDate };
+    }
+
+    if (employeeId) filter.employeeId = employeeId;
+    if (status) filter.status = status;
+
+    const data = await Attendance
+      .find(filter)
+      .sort({ date: -1, inTime: 1 });
+
+    res.json({ success: true, data });
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= PAGINATED LIST ================= */
 export const getAttendanceList = async (req, res) => {
   try {
     const { companyId, page = 1, limit = 20 } = req.query;
@@ -276,21 +259,41 @@ export const getAttendanceList = async (req, res) => {
   }
 };
 
-export const getTodayAttendance = async (req, res) => {
+export const getAttendanceByRange = async (req, res) => {
   try {
-    const { companyId } = req.params;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const attendance = await Attendance.find({
+    const {
       companyId,
-      date: today
-    }).sort({ inTime: 1 });
+      from,
+      to,
+      employeeId,
+      status
+    } = req.query;
 
-    res.json(attendance);
+    if (!companyId || !from || !to) {
+      return res.status(400).json({
+        message: "companyId, from and to are required"
+      });
+    }
+
+    let filter = {
+      companyId,
+      date: { $gte: from, $lte: to } //  STRING RANGE
+    };
+
+    if (employeeId) filter.employeeId = employeeId;
+    if (status) filter.status = status;
+
+    const records = await Attendance.find(filter)
+      .sort({ date: 1, inTime: 1 });
+
+    res.json({
+      success: true,
+      count: records.length,
+      data: records
+    });
 
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
