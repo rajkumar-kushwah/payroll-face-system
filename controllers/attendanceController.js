@@ -1,6 +1,7 @@
 import Employee from "../models/Employee.js";
 import Attendance from "../models/Attendance.js";
 import { verifyEmployeeFace } from "../utils/faceMatch.js";
+import { reverseGeocode } from "../utils/location.js";
 
 /* ================= OFFICE RULES ================= */
 const OFFICE_IN_HOUR = 9;
@@ -74,7 +75,7 @@ export const verifyFace = async (req, res) => {
 /* ================= PUNCH IN ================= */
 export const punchIn = async (req, res) => {
   try {
-    const { companyId, employeeId, location } = req.body;
+    const { companyId, employeeId, latitude, longitude  } = req.body;
 
     const employee = await Employee.findById(employeeId);
     if (!employee) {
@@ -92,6 +93,8 @@ export const punchIn = async (req, res) => {
       lateMinutes = Math.floor((now - officeIn) / 60000);
     }
 
+    const address = await reverseGeocode(latitude, longitude);
+
     const attendance = await Attendance.create({
       companyId,
       employeeId,
@@ -100,7 +103,11 @@ export const punchIn = async (req, res) => {
       faceImage: employee.faceImage,
       date: today,                 //  STRING
       inTime: now,
-      inLocation: location,
+      inLocation:{
+        address,
+        latitude,
+        longitude
+      },
       lateMinutes,
       status: "PRESENT"
     });
@@ -122,7 +129,7 @@ export const punchIn = async (req, res) => {
 /* ================= PUNCH OUT ================= */
 export const punchOut = async (req, res) => {
   try {
-    const { companyId, employeeId, location } = req.body;
+    const { companyId, employeeId,latitude, longitude } = req.body;
 
     const today = getDateString();
     const now = new Date();
@@ -149,8 +156,14 @@ export const punchOut = async (req, res) => {
     if (workingMinutes >= FULL_DAY_MINUTES) status = "PRESENT";
     else if (workingMinutes >= HALF_DAY_MINUTES) status = "HALF";
 
+    const address = await reverseGeocode(latitude, longitude);
+
     attendance.outTime = now;
-    attendance.outLocation = location;
+    attendance.outLocation = {
+      address,
+      latitude,
+      longitude
+    };
     attendance.workingMinutes = workingMinutes;
     attendance.status = status;
 

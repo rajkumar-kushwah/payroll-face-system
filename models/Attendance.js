@@ -30,8 +30,19 @@ const attendanceSchema = new mongoose.Schema({
   inTime: Date,
   outTime: Date,
 
-  inLocation: String,
-  outLocation: String,
+  // inLocation: String,
+  // outLocation: String,
+  inLocation: {
+  latitude: Number,
+  longitude: Number,
+  address: String
+},
+outLocation: {
+  latitude: Number,
+  longitude: Number,
+  address: String
+},
+
 
   workingMinutes: {
     type: Number,
