@@ -337,3 +337,24 @@ export const getAttendanceByRange = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+export const getEmployees = async (req, res) => {
+  try {
+    const { companyId } = req.query;
+    if (!companyId) {
+      return res.status(400).json({ message: "companyId required" });
+    }
+
+    const employees = await Employee.find({ companyId, status: "active" })
+      .select("name employeeCode phone"); // sirf required fields
+
+    res.json({
+      success: true,
+      count: employees.length,
+      data: employees
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
