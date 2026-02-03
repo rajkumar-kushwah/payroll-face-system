@@ -346,7 +346,7 @@ export const getEmployees = async (req, res) => {
     }
 
     const employees = await Employee.find({ companyId, status: "active" })
-      .select("name employeeCode phone"); // sirf required fields
+      .select(" faceImage name employeeCode phone"); // sirf required fields
 
     res.json({
       success: true,

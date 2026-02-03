@@ -19,8 +19,11 @@ router.post("/verify-face", protect, verifyFace);
 router.post("/punch-in", protect, punchIn);
 router.post("/punch-out", protect, punchOut);
 
+// routes/employeeRoutes.js
+router.get("/", protect, getEmployees);
+
 // GET
-router.get("/", getEmployees);
+
 router.get("/today/:companyId", protect, getTodayAttendance);
 router.get("/employee/:employeeId", protect, getEmployeeAttendance);
 router.get("/range", protect, getAttendanceByRange);
