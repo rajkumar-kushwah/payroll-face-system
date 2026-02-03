@@ -2,7 +2,7 @@ import Employee from "../models/Employee.js";
 import Attendance from "../models/Attendance.js";
 import { verifyEmployeeFace } from "../utils/faceMatch.js";
 import { reverseGeocode } from "../utils/location.js";
-
+import mongoose from "mongoose";
 /* ================= OFFICE RULES ================= */
 const OFFICE_IN_HOUR = 9;
 const OFFICE_IN_MIN = 30;
@@ -358,3 +358,41 @@ export const getEmployees = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+export const deleteAttendance = async (req, res) => {
+  try {
+    const { employeeId, date } = req.params;
+    const { companyId } = req.query; // companyId still query se
+
+    if (!companyId || !date || !employeeId) {
+      return res.status(400).json({ message: "companyId, employeeId and date are required" });
+    }
+
+    const compId = mongoose.Types.ObjectId(companyId);
+    const empId = mongoose.Types.ObjectId(employeeId);
+
+    const dayStart = new Date(date);
+    dayStart.setHours(0,0,0,0);
+
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23,59,59,999);
+
+    const result = await Attendance.deleteMany({
+      companyId: compId,
+      employeeId: empId,
+      date: { $gte: dayStart, $lte: dayEnd }
+    });
+
+    res.json({
+      success: true,
+      deletedCount: result.deletedCount,
+      message: "Attendance deleted successfully"
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error", err });
+  }
+};
+
+

@@ -8,7 +8,8 @@ import {
   getAttendanceByRange,
   getAttendanceList,
   filterAttendance,
-  getEmployees
+  getEmployees,
+  deleteAttendance
 } from "../controllers/attendanceController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -23,7 +24,7 @@ router.post("/punch-out", protect, punchOut);
 router.get("/", protect, getEmployees);
 
 // GET
-
+router.delete("/:employeeId/:date", protect, deleteAttendance)
 router.get("/today/:companyId", protect, getTodayAttendance);
 router.get("/employee/:employeeId", protect, getEmployeeAttendance);
 router.get("/range", protect, getAttendanceByRange);
