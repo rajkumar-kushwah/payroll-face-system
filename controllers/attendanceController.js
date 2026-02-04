@@ -1,14 +1,8 @@
 import Employee from "../models/Employee.js";
 import Attendance from "../models/Attendance.js";
 import { verifyEmployeeFace } from "../utils/faceMatch.js";
-// import { reverseGeocode } from "../utils/location.js";
+import { reverseGeocode } from "../utils/location.js";
 import mongoose from "mongoose";
-
-import { reverseGeocode } from "../utils/reverseGeocode.js";
-import { getDistanceInMeters } from "../utils/distance.js";
-import { OFFICE_LOCATION, OFFICE_NAME } from "../utils/office.js";
-// import { getCurrentLocation } from "../utils/getLocation.js";
-
 /* ================= OFFICE RULES ================= */
 const OFFICE_IN_HOUR = 9;
 const OFFICE_IN_MIN = 30;
@@ -79,150 +73,27 @@ export const verifyFace = async (req, res) => {
 };
 
 /* ================= PUNCH IN ================= */
-// export const punchIn = async (req, res) => {
-//   try {
-//     const { companyId, employeeId, latitude, longitude  } = req.body;
-
-//     const employee = await Employee.findById(employeeId);
-//     if (!employee) {
-//       return res.status(404).json({ message: "Employee not found" });
-//     }
-
-//     const today = getDateString();
-//     const now = new Date();
-
-//     const officeIn = new Date();
-//     officeIn.setHours(OFFICE_IN_HOUR, OFFICE_IN_MIN, 0, 0);
-
-//     let lateMinutes = 0;
-//     if (now > officeIn) {
-//       lateMinutes = Math.floor((now - officeIn) / 60000);
-//     }
-
-//     const address = await reverseGeocode(latitude, longitude);
-
-//     const attendance = await Attendance.create({
-//       companyId,
-//       employeeId,
-//       employeeCode: employee.employeeCode,
-//       employeeName: employee.name,
-//       faceImage: employee.faceImage,
-//       date: today,                 //  STRING
-//       inTime: now,
-//       inLocation:{
-//         address,
-//         latitude,
-//         longitude
-//       },
-//       lateMinutes,
-//       status: "PRESENT"
-//     });
-
-//     res.json({
-//       message: "Punch IN successful",
-//       inTime: attendance.inTime,
-//       lateMinutes
-//     });
-
-//   } catch (err) {
-//     if (err.code === 11000) {
-//       return res.status(409).json({ message: "Already punched IN today" });
-//     }
-//     res.status(500).json({ message: "Server error" });
-//   }
-// };
-
-
-
-/* ================= PUNCH OUT ================= */
-// export const punchOut = async (req, res) => {
-//   try {
-//     const { companyId, employeeId,latitude, longitude } = req.body;
-
-//     const today = getDateString();
-//     const now = new Date();
-
-//     const attendance = await Attendance.findOne({
-//       companyId,
-//       employeeId,
-//       date: today
-//     });
-
-//     if (!attendance || !attendance.inTime) {
-//       return res.status(400).json({ message: "Punch IN not found" });
-//     }
-
-//     if (attendance.outTime) {
-//       return res.status(409).json({ message: "Already punched OUT" });
-//     }
-
-//     const workingMinutes = Math.floor(
-//       (now - attendance.inTime) / 60000
-//     );
-
-//     let status = "ABSENT";
-//     if (workingMinutes >= FULL_DAY_MINUTES) status = "PRESENT";
-//     else if (workingMinutes >= HALF_DAY_MINUTES) status = "HALF";
-
-//     const address = await reverseGeocode(latitude, longitude);
-
-//     attendance.outTime = now;
-//     attendance.outLocation = {
-//       address,
-//       latitude,
-//       longitude
-//     };
-//     attendance.workingMinutes = workingMinutes;
-//     attendance.status = status;
-
-//     await attendance.save();
-
-//     res.json({
-//       message: "Punch OUT successful",
-//       outTime: attendance.outTime,
-//       workingMinutes,
-//       status
-//     });
-
-//   } catch (err) {
-//     res.status(500).json({ message: "Server error" });
-//   }
-// };
-
-/* ================= PUNCH IN ================= */
 export const punchIn = async (req, res) => {
   try {
-    const { companyId, employeeId, latitude, longitude, accuracy } = req.body;
-
-    if (latitude == null || longitude == null || accuracy == null) {
-      return res.status(400).json({ message: "Location data missing" });
-    }
-
-    //  REAL SECURITY (GPS DISTANCE)
-    const distance = getDistanceInMeters(
-      latitude,
-      longitude,
-      OFFICE_LOCATION.lat,
-      OFFICE_LOCATION.lng
-    );
-
-    if (distance > OFFICE_LOCATION.radius) {
-      return res.status(403).json({
-        message: "You are outside office location"
-      });
-    }
+    const { companyId, employeeId, latitude, longitude  } = req.body;
 
     const employee = await Employee.findById(employeeId);
     if (!employee) {
       return res.status(404).json({ message: "Employee not found" });
     }
 
-    const addressFromAPI = await reverseGeocode(latitude, longitude);
+    const today = getDateString();
+    const now = new Date();
 
-    const finalAddress =
-      addressFromAPI && addressFromAPI !== "Unknown location"
-        ? addressFromAPI
-        : OFFICE_NAME;
+    const officeIn = new Date();
+    officeIn.setHours(OFFICE_IN_HOUR, OFFICE_IN_MIN, 0, 0);
+
+    let lateMinutes = 0;
+    if (now > officeIn) {
+      lateMinutes = Math.floor((now - officeIn) / 60000);
+    }
+
+    const address = await reverseGeocode(latitude, longitude);
 
     const attendance = await Attendance.create({
       companyId,
@@ -230,56 +101,37 @@ export const punchIn = async (req, res) => {
       employeeCode: employee.employeeCode,
       employeeName: employee.name,
       faceImage: employee.faceImage,
-      date: new Date().toISOString().slice(0, 10),
-      inTime: new Date(),
-      inLocation: {
+      date: today,                 //  STRING
+      inTime: now,
+      inLocation:{
+        address,
         latitude,
-        longitude,
-        accuracy,
-        address: finalAddress
+        longitude
       },
+      lateMinutes,
       status: "PRESENT"
     });
 
     res.json({
       message: "Punch IN successful",
-      distance: Math.round(distance),
-      accuracy
+      inTime: attendance.inTime,
+      lateMinutes
     });
 
   } catch (err) {
     if (err.code === 11000) {
-      return res.status(409).json({ message: "Already punched IN" });
+      return res.status(409).json({ message: "Already punched IN today" });
     }
     res.status(500).json({ message: "Server error" });
   }
 };
 
-
 /* ================= PUNCH OUT ================= */
 export const punchOut = async (req, res) => {
   try {
-    const { companyId, employeeId, latitude, longitude, accuracy } = req.body;
+    const { companyId, employeeId,latitude, longitude } = req.body;
 
-    if (latitude == null || longitude == null || accuracy == null) {
-      return res.status(400).json({ message: "Location data missing" });
-    }
-
-    //  REAL SECURITY → distance check
-    const distance = getDistanceInMeters(
-      latitude,
-      longitude,
-      OFFICE_LOCATION.lat,
-      OFFICE_LOCATION.lng
-    );
-
-    if (distance > OFFICE_LOCATION.radius) {
-      return res.status(403).json({
-        message: "You are outside office location"
-      });
-    }
-
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getDateString();
     const now = new Date();
 
     const attendance = await Attendance.findOne({
@@ -296,37 +148,38 @@ export const punchOut = async (req, res) => {
       return res.status(409).json({ message: "Already punched OUT" });
     }
 
-    //  reverse geocode
-    const addressFromAPI = await reverseGeocode(latitude, longitude);
+    const workingMinutes = Math.floor(
+      (now - attendance.inTime) / 60000
+    );
 
-    //  fallback logic
-    const finalAddress =
-      addressFromAPI && addressFromAPI !== "Unknown location"
-        ? addressFromAPI
-        : OFFICE_NAME;
+    let status = "ABSENT";
+    if (workingMinutes >= FULL_DAY_MINUTES) status = "PRESENT";
+    else if (workingMinutes >= HALF_DAY_MINUTES) status = "HALF";
+
+    const address = await reverseGeocode(latitude, longitude);
 
     attendance.outTime = now;
     attendance.outLocation = {
+      address,
       latitude,
-      longitude,
-      accuracy,
-      address: finalAddress
+      longitude
     };
+    attendance.workingMinutes = workingMinutes;
+    attendance.status = status;
 
     await attendance.save();
 
     res.json({
       message: "Punch OUT successful",
       outTime: attendance.outTime,
-      accuracy,
-      distance: Math.round(distance)
+      workingMinutes,
+      status
     });
 
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 /* ================= EMPLOYEE ATTENDANCE ================= */
 export const getEmployeeAttendance = async (req, res) => {
