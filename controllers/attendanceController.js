@@ -6,7 +6,7 @@ import mongoose from "mongoose";
 
 import { reverseGeocode } from "../utils/reverseGeocode.js";
 import { getDistanceInMeters } from "../utils/distance.js";
-import { OFFICE_LOCATION } from "../utils/office.js";
+import { OFFICE_LOCATION, OFFICE_NAME } from "../utils/office.js";
 // import { getCurrentLocation } from "../utils/getLocation.js";
 
 /* ================= OFFICE RULES ================= */
@@ -194,15 +194,11 @@ export const punchIn = async (req, res) => {
   try {
     const { companyId, employeeId, latitude, longitude, accuracy } = req.body;
 
-    if (
-      latitude === undefined ||
-      longitude === undefined ||
-      accuracy === undefined
-    ) {
+    if (latitude == null || longitude == null || accuracy == null) {
       return res.status(400).json({ message: "Location data missing" });
     }
 
-    //  ONLY DISTANCE CHECK (REAL SECURITY)
+    //  REAL SECURITY (GPS DISTANCE)
     const distance = getDistanceInMeters(
       latitude,
       longitude,
@@ -221,10 +217,12 @@ export const punchIn = async (req, res) => {
       return res.status(404).json({ message: "Employee not found" });
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const now = new Date();
+    const addressFromAPI = await reverseGeocode(latitude, longitude);
 
-    const address = await reverseGeocode(latitude, longitude);
+    const finalAddress =
+      addressFromAPI && addressFromAPI !== "Unknown location"
+        ? addressFromAPI
+        : OFFICE_NAME;
 
     const attendance = await Attendance.create({
       companyId,
@@ -232,27 +230,26 @@ export const punchIn = async (req, res) => {
       employeeCode: employee.employeeCode,
       employeeName: employee.name,
       faceImage: employee.faceImage,
-      date: today,
-      inTime: now,
+      date: new Date().toISOString().slice(0, 10),
+      inTime: new Date(),
       inLocation: {
         latitude,
         longitude,
         accuracy,
-        address
+        address: finalAddress
       },
       status: "PRESENT"
     });
 
     res.json({
       message: "Punch IN successful",
-      inTime: attendance.inTime,
-      accuracy,
-      distance: Math.round(distance)
+      distance: Math.round(distance),
+      accuracy
     });
 
   } catch (err) {
     if (err.code === 11000) {
-      return res.status(409).json({ message: "Already punched IN today" });
+      return res.status(409).json({ message: "Already punched IN" });
     }
     res.status(500).json({ message: "Server error" });
   }
@@ -264,14 +261,11 @@ export const punchOut = async (req, res) => {
   try {
     const { companyId, employeeId, latitude, longitude, accuracy } = req.body;
 
-    if (
-      latitude === undefined ||
-      longitude === undefined ||
-      accuracy === undefined
-    ) {
+    if (latitude == null || longitude == null || accuracy == null) {
       return res.status(400).json({ message: "Location data missing" });
     }
 
+    //  REAL SECURITY → distance check
     const distance = getDistanceInMeters(
       latitude,
       longitude,
@@ -302,14 +296,21 @@ export const punchOut = async (req, res) => {
       return res.status(409).json({ message: "Already punched OUT" });
     }
 
-    const address = await reverseGeocode(latitude, longitude);
+    //  reverse geocode
+    const addressFromAPI = await reverseGeocode(latitude, longitude);
+
+    //  fallback logic
+    const finalAddress =
+      addressFromAPI && addressFromAPI !== "Unknown location"
+        ? addressFromAPI
+        : OFFICE_NAME;
 
     attendance.outTime = now;
     attendance.outLocation = {
       latitude,
       longitude,
       accuracy,
-      address
+      address: finalAddress
     };
 
     await attendance.save();

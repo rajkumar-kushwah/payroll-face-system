@@ -3,29 +3,26 @@ import fetch from "node-fetch";
 /* ================= REVERSE GEOCODE ================= */
 export async function reverseGeocode(lat, lng) {
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`;
 
     const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Attendance-System"
-      }
+      headers: { "User-Agent": "Attendance-System" }
     });
 
     const data = await res.json();
     const a = data.address || {};
 
-    //  Best fallback order
-    const address = [
+    return [
       a.building,
       a.road,
-      a.suburb,
-      a.village,
-      a.city || a.town,
+      a.suburb || a.neighbourhood,
+      a.city || a.town || a.village,
       a.state
-    ].filter(Boolean).join(", ");
+    ].filter(Boolean).join(", ")
+    || data.display_name
+    || "Office Area";
 
-    return address || "Office Area";
-  } catch (err) {
+  } catch {
     return "Office Area";
   }
 }
