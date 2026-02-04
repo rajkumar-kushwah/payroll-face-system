@@ -75,12 +75,14 @@ export const verifyFace = async (req, res) => {
 /* ================= PUNCH IN ================= */
 export const punchIn = async (req, res) => {
   try {
-    const { companyId, employeeId, latitude, longitude  } = req.body;
+    const { companyId, employeeId, latitude, longitude } = req.body;
+    console.log("PunchIn Request Body:", req.body);
 
     const employee = await Employee.findById(employeeId);
     if (!employee) {
       return res.status(404).json({ message: "Employee not found" });
     }
+    console.log("Employee found:", employee.name);
 
     const today = getDateString();
     const now = new Date();
@@ -93,24 +95,27 @@ export const punchIn = async (req, res) => {
       lateMinutes = Math.floor((now - officeIn) / 60000);
     }
 
-    const address = await reverseGeocode(latitude, longitude);
+    let address = "Unknown";
+    try {
+      address = await reverseGeocode(latitude, longitude);
+    } catch (err) {
+      console.error("Reverse geocode failed:", err);
+    }
 
+    console.log("Creating attendance...");
     const attendance = await Attendance.create({
       companyId,
       employeeId,
       employeeCode: employee.employeeCode,
       employeeName: employee.name,
       faceImage: employee.faceImage,
-      date: today,                 //  STRING
+      date: today,
       inTime: now,
-      inLocation:{
-        address,
-        latitude,
-        longitude
-      },
+      inLocation: { address, latitude, longitude },
       lateMinutes,
       status: "PRESENT"
     });
+    console.log("Attendance created:", attendance);
 
     res.json({
       message: "Punch IN successful",
@@ -119,12 +124,14 @@ export const punchIn = async (req, res) => {
     });
 
   } catch (err) {
+    console.error("PunchIn Error:", err);
     if (err.code === 11000) {
       return res.status(409).json({ message: "Already punched IN today" });
     }
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /* ================= PUNCH OUT ================= */
 export const punchOut = async (req, res) => {
