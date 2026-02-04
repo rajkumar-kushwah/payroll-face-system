@@ -132,84 +132,7 @@ export const verifyFace = async (req, res) => {
 // };
 
 
-export const punchIn = async (req, res) => {
-  try {
-    const { companyId, employeeId, latitude, longitude, accuracy } = req.body;
 
-    if (!latitude || !longitude || !accuracy) {
-      return res.status(400).json({ message: "Location data missing" });
-    }
-
-    //  Poor accuracy → reject
-    if (accuracy > 100) {
-      return res.status(400).json({
-        message: "Location not accurate. Please enable GPS and retry"
-      });
-    }
-
-    //  Distance check
-    const distance = getDistanceInMeters(
-      latitude,
-      longitude,
-      OFFICE_LOCATION.lat,
-      OFFICE_LOCATION.lng
-    );
-
-    if (distance > OFFICE_LOCATION.radius) {
-      return res.status(403).json({
-        message: "You are outside office location"
-      });
-    }
-
-    const employee = await Employee.findById(employeeId);
-    if (!employee) {
-      return res.status(404).json({ message: "Employee not found" });
-    }
-
-    const today = getDateString();
-    const now = new Date();
-
-    const officeIn = new Date();
-    officeIn.setHours(OFFICE_IN_HOUR, OFFICE_IN_MIN, 0, 0);
-
-    let lateMinutes = 0;
-    if (now > officeIn) {
-      lateMinutes = Math.floor((now - officeIn) / 60000);
-    }
-
-    const address = await reverseGeocode(latitude, longitude);
-
-    const attendance = await Attendance.create({
-      companyId,
-      employeeId,
-      employeeCode: employee.employeeCode,
-      employeeName: employee.name,
-      faceImage: employee.faceImage,
-      date: today,
-      inTime: now,
-      inLocation: {
-        latitude,
-        longitude,
-        accuracy,
-        address
-      },
-      lateMinutes,
-      status: "PRESENT"
-    });
-
-    res.json({
-      message: "Punch IN successful",
-      inTime: attendance.inTime,
-      lateMinutes
-    });
-
-  } catch (err) {
-    if (err.code === 11000) {
-      return res.status(409).json({ message: "Already punched IN today" });
-    }
-    res.status(500).json({ message: "Server error" });
-  }
-};
 /* ================= PUNCH OUT ================= */
 // export const punchOut = async (req, res) => {
 //   try {
@@ -265,17 +188,97 @@ export const punchIn = async (req, res) => {
 //   }
 // };
 
+/* ================= PUNCH IN ================= */
+export const punchIn = async (req, res) => {
+  try {
+    const { companyId, employeeId, latitude, longitude, accuracy } = req.body;
+
+    //  Correct validation
+    if (
+      latitude === undefined ||
+      longitude === undefined ||
+      accuracy === undefined
+    ) {
+      return res.status(400).json({ message: "Location data missing" });
+    }
+
+    //  Accuracy check
+    if (accuracy > 100) {
+      return res.status(400).json({
+        message: "Location not accurate. Please go near window / turn on GPS"
+      });
+    }
+
+    //  Distance check
+    const distance = getDistanceInMeters(
+      latitude,
+      longitude,
+      OFFICE_LOCATION.lat,
+      OFFICE_LOCATION.lng
+    );
+
+    if (distance > OFFICE_LOCATION.radius) {
+      return res.status(403).json({
+        message: "You are outside office location"
+      });
+    }
+
+    const employee = await Employee.findById(employeeId);
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+
+    const address = await reverseGeocode(latitude, longitude);
+
+    const attendance = await Attendance.create({
+      companyId,
+      employeeId,
+      employeeCode: employee.employeeCode,
+      employeeName: employee.name,
+      faceImage: employee.faceImage,
+      date: today,
+      inTime: now,
+      inLocation: {
+        latitude,
+        longitude,
+        accuracy,
+        address
+      },
+      status: "PRESENT"
+    });
+
+    res.json({
+      message: "Punch IN successful",
+      inTime: attendance.inTime
+    });
+
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: "Already punched IN today" });
+    }
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= PUNCH OUT ================= */
 export const punchOut = async (req, res) => {
   try {
     const { companyId, employeeId, latitude, longitude, accuracy } = req.body;
 
-    if (!latitude || !longitude || !accuracy) {
+    if (
+      latitude === undefined ||
+      longitude === undefined ||
+      accuracy === undefined
+    ) {
       return res.status(400).json({ message: "Location data missing" });
     }
 
     if (accuracy > 100) {
       return res.status(400).json({
-        message: "Location not accurate. Please enable GPS and retry"
+        message: "Location not accurate. Please go near window / turn on GPS"
       });
     }
 
@@ -292,7 +295,7 @@ export const punchOut = async (req, res) => {
       });
     }
 
-    const today = getDateString();
+    const today = new Date().toISOString().slice(0, 10);
     const now = new Date();
 
     const attendance = await Attendance.findOne({
@@ -309,14 +312,6 @@ export const punchOut = async (req, res) => {
       return res.status(409).json({ message: "Already punched OUT" });
     }
 
-    const workingMinutes = Math.floor(
-      (now - attendance.inTime) / 60000
-    );
-
-    let status = "ABSENT";
-    if (workingMinutes >= FULL_DAY_MINUTES) status = "PRESENT";
-    else if (workingMinutes >= HALF_DAY_MINUTES) status = "HALF";
-
     const address = await reverseGeocode(latitude, longitude);
 
     attendance.outTime = now;
@@ -326,16 +321,12 @@ export const punchOut = async (req, res) => {
       accuracy,
       address
     };
-    attendance.workingMinutes = workingMinutes;
-    attendance.status = status;
 
     await attendance.save();
 
     res.json({
       message: "Punch OUT successful",
-      outTime: attendance.outTime,
-      workingMinutes,
-      status
+      outTime: attendance.outTime
     });
 
   } catch (err) {
