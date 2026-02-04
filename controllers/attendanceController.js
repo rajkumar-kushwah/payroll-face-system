@@ -7,6 +7,7 @@ import mongoose from "mongoose";
 import { reverseGeocode } from "../utils/reverseGeocode.js";
 import { getDistanceInMeters } from "../utils/distance.js";
 import { OFFICE_LOCATION } from "../utils/office.js";
+// import { getCurrentLocation } from "../utils/getLocation.js";
 
 /* ================= OFFICE RULES ================= */
 const OFFICE_IN_HOUR = 9;
@@ -193,7 +194,6 @@ export const punchIn = async (req, res) => {
   try {
     const { companyId, employeeId, latitude, longitude, accuracy } = req.body;
 
-    //  Correct validation
     if (
       latitude === undefined ||
       longitude === undefined ||
@@ -202,14 +202,7 @@ export const punchIn = async (req, res) => {
       return res.status(400).json({ message: "Location data missing" });
     }
 
-    //  Accuracy check
-    if (accuracy > 100) {
-      return res.status(400).json({
-        message: "Location not accurate. Please go near window / turn on GPS"
-      });
-    }
-
-    //  Distance check
+    //  ONLY DISTANCE CHECK (REAL SECURITY)
     const distance = getDistanceInMeters(
       latitude,
       longitude,
@@ -252,7 +245,9 @@ export const punchIn = async (req, res) => {
 
     res.json({
       message: "Punch IN successful",
-      inTime: attendance.inTime
+      inTime: attendance.inTime,
+      accuracy,
+      distance: Math.round(distance)
     });
 
   } catch (err) {
@@ -262,6 +257,7 @@ export const punchIn = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /* ================= PUNCH OUT ================= */
 export const punchOut = async (req, res) => {
@@ -274,12 +270,6 @@ export const punchOut = async (req, res) => {
       accuracy === undefined
     ) {
       return res.status(400).json({ message: "Location data missing" });
-    }
-
-    if (accuracy > 100) {
-      return res.status(400).json({
-        message: "Location not accurate. Please go near window / turn on GPS"
-      });
     }
 
     const distance = getDistanceInMeters(
@@ -326,13 +316,16 @@ export const punchOut = async (req, res) => {
 
     res.json({
       message: "Punch OUT successful",
-      outTime: attendance.outTime
+      outTime: attendance.outTime,
+      accuracy,
+      distance: Math.round(distance)
     });
 
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /* ================= EMPLOYEE ATTENDANCE ================= */
 export const getEmployeeAttendance = async (req, res) => {
