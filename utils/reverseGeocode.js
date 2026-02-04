@@ -1,4 +1,3 @@
-
 import fetch from "node-fetch";
 
 /* ================= REVERSE GEOCODE ================= */
@@ -13,14 +12,20 @@ export async function reverseGeocode(lat, lng) {
     });
 
     const data = await res.json();
+    const a = data.address || {};
 
-    return (
-      data.address?.building ||
-      data.address?.road ||
-      data.display_name ||
-      "Unknown location"
-    );
+    //  Best fallback order
+    const address = [
+      a.building,
+      a.road,
+      a.suburb,
+      a.village,
+      a.city || a.town,
+      a.state
+    ].filter(Boolean).join(", ");
+
+    return address || "Office Area";
   } catch (err) {
-    return "Unknown location";
+    return "Office Area";
   }
 }
