@@ -362,37 +362,41 @@ export const getEmployees = async (req, res) => {
 export const deleteAttendance = async (req, res) => {
   try {
     const { employeeId, date } = req.params;
-    const { companyId } = req.query; // companyId still query se
+    const { companyId } = req.query;
 
     if (!companyId || !date || !employeeId) {
       return res.status(400).json({ message: "companyId, employeeId and date are required" });
     }
 
-    const compId = mongoose.Types.ObjectId(companyId);
-    const empId = mongoose.Types.ObjectId(employeeId);
+    const compId = new mongoose.Types.ObjectId(companyId);
+    const empId = new mongoose.Types.ObjectId(employeeId);
 
-    const dayStart = new Date(date);
-    dayStart.setHours(0,0,0,0);
+    // ✅ SAFE DATE FIX
+    const safeDate = new Date(date.split("T")[0]);
 
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23,59,59,999);
+    const dayStart = new Date(safeDate);
+    dayStart.setHours(0, 0, 0, 0);
+
+    const dayEnd = new Date(safeDate);
+    dayEnd.setHours(23, 59, 59, 999);
 
     const result = await Attendance.deleteMany({
       companyId: compId,
       employeeId: empId,
-      date: { $gte: dayStart, $lte: dayEnd }
+      date: { $gte: dayStart, $lte: dayEnd },
     });
 
     res.json({
       success: true,
       deletedCount: result.deletedCount,
-      message: "Attendance deleted successfully"
+      message: "Attendance deleted successfully",
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error", err });
+    console.error("Delete attendance error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
